@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from servisler.pdf_service import pdf_oku
 import tempfile
@@ -8,6 +9,14 @@ app = FastAPI(
     title="İnşaat AI",
     description="Otonom inşaat metraj ve maliyet analiz sistemi",
     version="0.2.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -483,15 +492,7 @@ async def proje_yukle(dosya: UploadFile = File(...)):
     "mesaj": "Proje PDF'si başarıyla okundu.",
     "dosya_adi": dosya.filename,
     "sayfa_sayisi": sonuc["sayfa_sayisi"],
-    "sayfalar": [
-        {
-            "sayfa": sayfa["sayfa"],
-            "metin_onizleme": sayfa["metin"][:500]
         }
-        for sayfa in sonuc["sayfalar"]
-    ]
-        }
-
     except Exception as hata:
 
         raise HTTPException(
