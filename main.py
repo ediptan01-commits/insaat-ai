@@ -479,11 +479,17 @@ async def proje_yukle(dosya: UploadFile = File(...)):
         sonuc = pdf_oku(gecici_dosya)
 
         return {
-            "durum": "başarılı",
-            "mesaj": "Proje PDF'si başarıyla okundu.",
-            "dosya_adi": dosya.filename,
-            "sayfa_sayisi": sonuc["sayfa_sayisi"],
-            "sayfalar": sonuc["sayfalar"]
+    "durum": "başarılı",
+    "mesaj": "Proje PDF'si başarıyla okundu.",
+    "dosya_adi": dosya.filename,
+    "sayfa_sayisi": sonuc["sayfa_sayisi"],
+    "sayfalar": [
+        {
+            "sayfa": sayfa["sayfa"],
+            "metin_onizleme": sayfa["metin"][:500]
+        }
+        for sayfa in sonuc["sayfalar"]
+    ]
         }
 
     except Exception as hata:
