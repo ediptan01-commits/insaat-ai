@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
+from agents.project_agent import ProjectAgent
 import tempfile
 import os
 
@@ -488,14 +489,14 @@ async def proje_yukle(dosya: UploadFile = File(...)):
 
 
         sonuc = pdf_oku(gecici_dosya)
-
+        analiz = ProjectAgent().analyze(sonuc)
         return {
     "durum": "başarılı",
     "mesaj": "Proje PDF'si başarıyla okundu.",
     "dosya_adi": dosya.filename,
     "sayfa_sayisi": sonuc["sayfa_sayisi"],
-        },
-        status_code=200
+                "analiz": analiz,
+        }
         
     except Exception as hata:
 
