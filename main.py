@@ -387,6 +387,7 @@ form.addEventListener("submit", async function(e) {
         });
 
         const data = await response.json();
+const proje = Array.isArray(data) ? data[0] : data;
 
         loading.style.display = "none";
         sonuc.style.display = "block";
@@ -409,7 +410,7 @@ form.addEventListener("submit", async function(e) {
             </div>
             <br>
             📄 Sayfa sayısı:
-            <strong>${data.sayfa_sayisi}</strong>
+            <strong>${proje.sayfa_sayisi}</strong>
             <br><br>
             🤖 PDF analiz için hazır.`;
 
