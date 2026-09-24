@@ -557,3 +557,10 @@ async def proje_yukle(dosya: UploadFile = File(...)):
         if gecici_dosya and os.path.exists(gecici_dosya):
 
             os.remove(gecici_dosya)
+            
+@app.get("/test")
+def test():
+    return {
+        "durum": "başarılı",
+        "mesaj": "Sunucu cevap veriyor"
+    }
