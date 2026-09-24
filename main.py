@@ -405,16 +405,64 @@ const proje = Array.isArray(data) ? data[0] : data;
             return;
         }
 
-        sonuc.innerHTML =
-            `<div class="success">
-                ✅ Proje başarıyla yüklendi
-            </div>
-            <br>
-            📄 Sayfa sayısı:
-            <strong>${proje.sayfa_sayisi}</strong>
-            <br><br>
-            🤖 PDF analiz için hazır.`;
+        sonuc.innerHTML = `
+    <div class="success">
+        ✅ Proje başarıyla analiz edildi
+    </div>
 
+    <br>
+
+    📄 Sayfa sayısı:
+    <strong>${proje.sayfa_sayisi}</strong>
+
+    <br><br>
+
+    🤖 Analiz durumu:
+    <strong>${proje.analiz?.durum || "Tamamlandı"}</strong>
+
+    <hr>
+
+    <h3>📐 Metraj Sonuçları</h3>
+
+    ${
+        proje.analiz?.metrajlar?.length
+        ? `
+            <div class="metraj-listesi">
+                ${proje.analiz.metrajlar.map(item => `
+                    <div class="metraj-item">
+                        <strong>${item.malzeme}</strong><br>
+                        📏 Miktar:
+                        <strong>${item.miktar}</strong>
+                        ${item.birim}
+                        <br>
+                        📄 Sayfa: ${item.sayfa}
+                    </div>
+                `).join("")}
+            </div>
+        `
+        : `
+            <div class="warning">
+                ⚠️ PDF metninden henüz ölçü çıkarılamadı.
+            </div>
+        `
+    }
+
+    <hr>
+
+    <h3>🧱 Tespit Edilen Malzemeler</h3>
+
+    ${
+        proje.analiz?.tespit_edilen_malzemeler?.length
+        ? `
+            <ul>
+                ${proje.analiz.tespit_edilen_malzemeler
+                    .map(malzeme => `<li>${malzeme}</li>`)
+                    .join("")}
+            </ul>
+        `
+        : "Malzeme tespit edilemedi."
+    }
+`;
     } catch (error) {
 
         loading.style.display = "none";
