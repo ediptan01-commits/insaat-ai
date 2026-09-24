@@ -382,9 +382,8 @@ form.addEventListener("submit", async function(e) {
 
     try {
 
-        const response = await fetch("https://insaat-ai.onrender.com/proje/yukle", {
+        const response = await fetch("/proje/yukle", {
     method: "POST",
-    mode: "cors",
     body: formData
 });
 
