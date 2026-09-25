@@ -1,27 +1,28 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
 from agents.project_agent import ProjectAgent
 
 import tempfile
 import os
+import html
 
 
-# =========================================================
+# ============================================================
 # UYGULAMA
-# =========================================================
+# ============================================================
 
 app = FastAPI(
     title="İnşaat AI",
-    description="Otonom inşaat metraj ve proje analiz sistemi",
+    description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
     version="0.3.0"
 )
 
 
-# =========================================================
+# ============================================================
 # CORS
-# =========================================================
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,19 +33,20 @@ app.add_middleware(
 )
 
 
-# =========================================================
-# ANA SAYFA
-# =========================================================
+# ============================================================
+# ANA SAYFA TASARIMI
+# ============================================================
 
-@app.get("/", response_class=HTMLResponse)
 def ana_sayfa():
 
     return """
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
 
 <meta charset="UTF-8">
+
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0">
 
@@ -58,108 +60,184 @@ def ana_sayfa():
 
 body {
     margin: 0;
-    background: #0b0f17;
-    color: white;
-    font-family: Arial, sans-serif;
+    background:
+        radial-gradient(
+            circle at top,
+            #172033 0%,
+            #0b0f17 55%,
+            #070a10 100%
+        );
+
+    color: #ffffff;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    min-height: 100vh;
 }
 
 .container {
-    width: 92%;
+    width: 94%;
     max-width: 900px;
-    margin: 40px auto;
+    margin: auto;
+    padding: 30px 0 60px;
+}
+
+.header {
+    text-align: center;
+    padding: 25px 10px 35px;
+}
+
+.logo {
+    font-size: 58px;
+    margin-bottom: 5px;
 }
 
 h1 {
-    text-align: center;
     font-size: 42px;
-    margin-bottom: 10px;
+    margin: 5px 0 12px;
+
+    background:
+        linear-gradient(
+            90deg,
+            #8b5cf6,
+            #c084fc,
+            #60a5fa
+        );
+
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .subtitle {
-    text-align: center;
-    color: #aab3c5;
+    color: #aeb8c8;
     font-size: 18px;
-    margin-bottom: 35px;
+    line-height: 1.6;
 }
 
-.upload-box {
-    border: 2px dashed #53627d;
+.card {
+    background: rgba(18, 25, 38, 0.95);
+    border: 1px solid #29354a;
+    border-radius: 28px;
+    padding: 30px;
+    margin-bottom: 25px;
+
+    box-shadow:
+        0 20px 60px rgba(0,0,0,0.35);
+}
+
+.upload-area {
+    border: 2px dashed #53627c;
     border-radius: 25px;
-    padding: 40px 20px;
+    padding: 35px 20px;
     text-align: center;
-    background: #111722;
 }
 
-.icon {
+.upload-icon {
     font-size: 70px;
+    margin-bottom: 15px;
 }
 
-h2 {
-    font-size: 28px;
+.upload-title {
+    font-size: 27px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.upload-text {
+    color: #aeb8c8;
+    font-size: 18px;
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+.file-box {
+    background: #182231;
+    border: 1px solid #35445b;
+    border-radius: 15px;
+    padding: 14px;
+    margin-bottom: 20px;
 }
 
 input[type="file"] {
     width: 100%;
-    padding: 15px;
-    background: #182130;
-    border-radius: 12px;
     color: white;
-    margin: 20px 0;
+    font-size: 16px;
 }
 
-button {
+.button {
+    display: block;
     width: 100%;
-    padding: 20px;
+
     border: 0;
-    border-radius: 15px;
-    background: #713cff;
-    color: white;
-    font-size: 21px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-button:disabled {
-    opacity: 0.6;
-}
-
-.result {
-    margin-top: 25px;
-    padding: 25px;
     border-radius: 18px;
-    background: #111722;
+
+    padding: 20px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #6d28d9,
+            #7c3aed,
+            #8b5cf6
+        );
+
+    color: white;
+
+    font-size: 23px;
+    font-weight: bold;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+
+    text-decoration: none;
 }
 
-.success {
-    color: #43df7b;
+.button:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 10px 30px rgba(124,58,237,0.35);
 }
 
-.error {
-    color: #ff5c5c;
-}
-
-.loading {
-    color: #ffc857;
-}
-
-.card {
-    margin-top: 30px;
-    padding: 25px;
-    border-radius: 20px;
-    background: #111722;
+.features-title {
+    font-size: 32px;
+    margin-bottom: 22px;
 }
 
 .feature {
-    padding: 20px;
-    margin-top: 15px;
-    border-radius: 15px;
-    background: #192230;
+    background: #172130;
+    border-radius: 20px;
+    padding: 22px;
+    margin-bottom: 15px;
+    border: 1px solid #26344a;
 }
 
-pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: #cbd5e1;
+.feature-icon {
+    font-size: 32px;
+    float: left;
+    margin-right: 14px;
+}
+
+.feature h3 {
+    margin: 0 0 7px;
+    font-size: 22px;
+}
+
+.feature p {
+    color: #aeb8c8;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.info {
+    text-align: center;
+    color: #718096;
+    font-size: 14px;
+    margin-top: 30px;
 }
 
 </style>
@@ -170,290 +248,822 @@ pre {
 
 <div class="container">
 
-<h1>🏗️ İnşaat AI</h1>
+    <div class="header">
 
-<div class="subtitle">
-Otonom proje analiz, metraj ve maliyet sistemi
-</div>
+        <div class="logo">🏗️</div>
 
+        <h1>İnşaat AI</h1>
 
-<div class="upload-box">
-
-<div class="icon">📄</div>
-
-<h2>Proje PDF'sini yükleyin</h2>
-
-<p>
-PDF formatındaki mimari veya teknik projeler
-</p>
-
-<input
-    id="dosya"
-    type="file"
-    accept=".pdf,application/pdf"
->
-
-
-<button
-    id="analizBtn"
-    onclick="projeyiAnalizEt()"
->
-🚀 Projeyi Analiz Et
-</button>
-
-</div>
-
-
-<div
-    id="sonuc"
-    class="result"
-    style="display:none"
-></div>
-
-
-<div class="card">
-
-<h2>🤖 Sistem Özellikleri</h2>
-
-<div class="feature">
-📐 <strong>Metraj</strong><br>
-Projede bulunan ölçü ve miktarları analiz eder.
-</div>
-
-<div class="feature">
-🧱 <strong>Malzeme</strong><br>
-Projede tespit edilen malzemeleri belirler.
-</div>
-
-<div class="feature">
-💰 <strong>Maliyet</strong><br>
-İlerleyen aşamada malzeme ve işçilik maliyetlerini hesaplar.
-</div>
-
-</div>
-
-</div>
-
-
-<script>
-
-async function projeyiAnalizEt() {
-
-    const dosyaInput = document.getElementById("dosya");
-    const sonuc = document.getElementById("sonuc");
-    const buton = document.getElementById("analizBtn");
-
-    if (!dosyaInput.files || dosyaInput.files.length === 0) {
-
-        sonuc.style.display = "block";
-
-        sonuc.innerHTML = `
-            <div class="error">
-                ❌ Lütfen önce bir PDF dosyası seçin.
-            </div>
-        `;
-
-        return;
-    }
-
-
-    const dosya = dosyaInput.files[0];
-
-
-    if (!dosya.name.toLowerCase().endsWith(".pdf")) {
-
-        sonuc.style.display = "block";
-
-        sonuc.innerHTML = `
-            <div class="error">
-                ❌ Sadece PDF dosyaları yüklenebilir.
-            </div>
-        `;
-
-        return;
-    }
-
-
-    const formData = new FormData();
-
-    formData.append("dosya", dosya);
-
-
-    buton.disabled = true;
-
-    buton.innerText = "⏳ Proje analiz ediliyor...";
-
-
-    sonuc.style.display = "block";
-
-    sonuc.innerHTML = `
-        <div class="loading">
-            🤖 PDF sunucuya gönderiliyor...<br><br>
-            Lütfen bekleyin.
+        <div class="subtitle">
+            Yapay zekâ destekli otonom
+            inşaat proje analiz sistemi
         </div>
-    `;
+
+    </div>
 
 
-    try {
+    <div class="card">
 
-        const response = await fetch(
-            "/proje/yukle",
-            {
-                method: "POST",
-                body: formData
-            }
-        );
+        <div class="upload-area">
 
-
-        const text = await response.text();
-
-
-        let data;
-
-        try {
-
-            data = JSON.parse(text);
-
-        } catch {
-
-            throw new Error(
-                "Sunucudan geçerli JSON cevabı alınamadı."
-            );
-
-        }
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.detail || "Sunucu hata döndürdü."
-            );
-
-        }
-
-
-        const analiz =
-            data.analiz || {};
-
-
-        const siniflar =
-            analiz.sayfa_siniflari || {};
-
-
-        const malzemeler =
-            analiz.tespit_edilen_malzemeler || [];
-
-
-        sonuc.innerHTML = `
-
-            <div class="success">
-                <h2>✅ Proje başarıyla analiz edildi</h2>
+            <div class="upload-icon">
+                📄
             </div>
 
-            <p>
-                📄 <strong>Dosya:</strong>
-                ${data.dosya_adi || dosya.name}
-            </p>
-
-            <p>
-                📑 <strong>Sayfa sayısı:</strong>
-                ${data.sayfa_sayisi || 0}
-            </p>
-
-            <p>
-                📐 <strong>Tespit edilen ölçü sayısı:</strong>
-                ${analiz.tespit_edilen_olcu_sayisi || 0}
-            </p>
-
-            <p>
-                🧱 <strong>Tespit edilen malzeme sayısı:</strong>
-                ${malzemeler.length}
-            </p>
-
-            <hr>
-
-            <h3>📋 Sayfa sınıfları</h3>
-
-            <pre>
-Mimari: ${JSON.stringify(siniflar.mimari || [], null, 2)}
-
-Statik: ${JSON.stringify(siniflar.statik || [], null, 2)}
-
-Elektrik: ${JSON.stringify(siniflar.elektrik || [], null, 2)}
-
-Mekanik: ${JSON.stringify(siniflar.mekanik || [], null, 2)}
-
-Diğer: ${JSON.stringify(siniflar.diger || [], null, 2)}
-            </pre>
-
-            <h3>🧱 Tespit edilen malzemeler</h3>
-
-            <pre>${JSON.stringify(
-                malzemeler,
-                null,
-                2
-            )}</pre>
-
-        `;
-
-    }
-
-    catch (hata) {
-
-        sonuc.innerHTML = `
-
-            <div class="error">
-
-                <h2>❌ Analiz sırasında hata oluştu</h2>
-
-                <p>
-                    ${hata.message}
-                </p>
-
+            <div class="upload-title">
+                Proje PDF'sini yükleyin
             </div>
 
-        `;
+            <div class="upload-text">
+                Mimari veya teknik projenizi yükleyin.
+                Sistem PDF'yi okuyarak proje bilgilerini,
+                metrajları ve malzemeleri analiz eder.
+            </div>
 
-    }
 
-    finally {
+            <!--
+                ÖNEMLİ:
+                Burada JavaScript fetch KULLANILMIYOR.
+                Dosya doğrudan sunucuya gönderiliyor.
+            -->
 
-        buton.disabled = false;
+            <form
+                action="/proje/analiz-et"
+                method="post"
+                enctype="multipart/form-data"
+            >
 
-        buton.innerText =
-            "🚀 Projeyi Analiz Et";
+                <div class="file-box">
 
-    }
+                    <input
+                        type="file"
+                        name="dosya"
+                        accept=".pdf,application/pdf"
+                        required
+                    >
 
-}
+                </div>
 
-</script>
+
+                <button
+                    type="submit"
+                    class="button"
+                >
+                    🚀 Projeyi Analiz Et
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <div class="features-title">
+            🤖 Sistem Özellikleri
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                📐
+            </div>
+
+            <h3>Metraj</h3>
+
+            <p>
+                Projede bulunan ölçü ve miktarları
+                analiz eder.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🧱
+            </div>
+
+            <h3>Malzeme</h3>
+
+            <p>
+                Projede kullanılan yapı malzemelerini
+                tespit eder.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                💰
+            </div>
+
+            <h3>Maliyet</h3>
+
+            <p>
+                Gelecek aşamada malzeme, işçilik,
+                nakliye ve diğer maliyetleri hesaplar.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🤖
+            </div>
+
+            <h3>Otonom Analiz</h3>
+
+            <p>
+                Proje sayfalarını otomatik olarak
+                sınıflandırır ve analiz eder.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="info">
+        İnşaat AI • Sürüm 0.3.0
+    </div>
+
+</div>
 
 </body>
+
 </html>
 """
 
 
-# =========================================================
-# HEALTH
-# =========================================================
+# ============================================================
+# SONUÇ SAYFASI
+# ============================================================
+
+def sonuc_sayfasi(
+    dosya_adi,
+    sonuc,
+    analiz
+):
+
+    toplam_sayfa = sonuc.get(
+        "sayfa_sayisi",
+        0
+    )
+
+    mimari = analiz.get(
+        "sayfa_siniflari",
+        {}
+    ).get(
+        "mimari",
+        []
+    )
+
+    statik = analiz.get(
+        "sayfa_siniflari",
+        {}
+    ).get(
+        "statik",
+        []
+    )
+
+    elektrik = analiz.get(
+        "sayfa_siniflari",
+        {}
+    ).get(
+        "elektrik",
+        []
+    )
+
+    mekanik = analiz.get(
+        "sayfa_siniflari",
+        {}
+    ).get(
+        "mekanik",
+        []
+    )
+
+    diger = analiz.get(
+        "sayfa_siniflari",
+        {}
+    ).get(
+        "diger",
+        []
+    )
+
+    malzemeler = analiz.get(
+        "tespit_edilen_malzemeler",
+        []
+    )
+
+    metrajlar = analiz.get(
+        "metrajlar",
+        []
+    )
+
+    dosya_adi = html.escape(
+        str(dosya_adi)
+    )
+
+
+    malzeme_html = ""
+
+    if malzemeler:
+
+        for malzeme in malzemeler:
+
+            malzeme_html += f"""
+            <span class="tag">
+                {html.escape(str(malzeme))}
+            </span>
+            """
+
+    else:
+
+        malzeme_html = """
+        <span class="muted">
+            Henüz malzeme tespit edilmedi.
+        </span>
+        """
+
+
+    metraj_html = ""
+
+    if metrajlar:
+
+        for item in metrajlar[:100]:
+
+            malzeme = html.escape(
+                str(item.get("malzeme", "-"))
+            )
+
+            miktar = html.escape(
+                str(item.get("miktar", "-"))
+            )
+
+            birim = html.escape(
+                str(item.get("birim", "-"))
+            )
+
+            sayfa = html.escape(
+                str(item.get("sayfa", "-"))
+            )
+
+            kaynak = html.escape(
+                str(item.get("kaynak", ""))
+            )
+
+            metraj_html += f"""
+            <tr>
+
+                <td>{malzeme}</td>
+
+                <td>
+                    <strong>{miktar}</strong>
+                </td>
+
+                <td>{birim}</td>
+
+                <td>{sayfa}</td>
+
+                <td>{kaynak}</td>
+
+            </tr>
+            """
+
+    else:
+
+        metraj_html = """
+        <tr>
+            <td colspan="5">
+                Bu PDF'de metin tabanlı ölçü bulunamadı.
+            </td>
+        </tr>
+        """
+
+
+    return f"""
+<!DOCTYPE html>
+
+<html lang="tr">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>Proje Analizi - İnşaat AI</title>
+
+<style>
+
+* {{
+    box-sizing: border-box;
+}}
+
+body {{
+
+    margin: 0;
+
+    background:
+        linear-gradient(
+            180deg,
+            #080c13,
+            #111827
+        );
+
+    color: white;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+}}
+
+.container {{
+
+    width: 94%;
+    max-width: 1000px;
+
+    margin: auto;
+
+    padding: 25px 0 60px;
+
+}}
+
+.card {{
+
+    background: #121a27;
+
+    border: 1px solid #29364a;
+
+    border-radius: 25px;
+
+    padding: 25px;
+
+    margin-bottom: 20px;
+
+}}
+
+h1 {{
+
+    font-size: 34px;
+
+    margin-top: 0;
+
+}}
+
+h2 {{
+
+    font-size: 25px;
+
+}}
+
+.success {{
+
+    background: #102c20;
+
+    border: 1px solid #248957;
+
+    color: #6ee7a0;
+
+    padding: 20px;
+
+    border-radius: 18px;
+
+    font-size: 20px;
+
+    margin-bottom: 20px;
+
+}}
+
+.grid {{
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(140px, 1fr)
+        );
+
+    gap: 12px;
+
+}}
+
+.stat {{
+
+    background: #182231;
+
+    border-radius: 17px;
+
+    padding: 20px;
+
+}}
+
+.stat-number {{
+
+    font-size: 32px;
+
+    font-weight: bold;
+
+}}
+
+.stat-label {{
+
+    color: #9ca9bc;
+
+    margin-top: 5px;
+
+}}
+
+.tags {{
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 8px;
+
+}}
+
+.tag {{
+
+    background: #312e81;
+
+    color: #ddd6fe;
+
+    padding: 9px 13px;
+
+    border-radius: 30px;
+
+}}
+
+table {{
+
+    width: 100%;
+
+    border-collapse: collapse;
+
+    min-width: 650px;
+
+}}
+
+.table-container {{
+
+    overflow-x: auto;
+
+}}
+
+th,
+td {{
+
+    border-bottom: 1px solid #29364a;
+
+    padding: 12px;
+
+    text-align: left;
+
+}}
+
+th {{
+
+    color: #a78bfa;
+
+}}
+
+td {{
+
+    color: #d4dbe7;
+
+}}
+
+.button {{
+
+    display: block;
+
+    width: 100%;
+
+    padding: 18px;
+
+    text-align: center;
+
+    text-decoration: none;
+
+    color: white;
+
+    background: #6d28d9;
+
+    border-radius: 16px;
+
+    font-size: 20px;
+
+    font-weight: bold;
+
+    margin-top: 20px;
+
+}}
+
+.muted {{
+
+    color: #8d99aa;
+
+}}
+
+.warning {{
+
+    background: #30251a;
+
+    border: 1px solid #755322;
+
+    color: #f3c978;
+
+    padding: 15px;
+
+    border-radius: 15px;
+
+    margin-top: 15px;
+
+}}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+
+<div class="card">
+
+    <div class="success">
+        ✅ Proje başarıyla analiz edildi
+    </div>
+
+    <h1>
+        🏗️ Proje Analiz Raporu
+    </h1>
+
+    <p>
+        <strong>Dosya:</strong>
+        {dosya_adi}
+    </p>
+
+</div>
+
+
+<div class="card">
+
+    <h2>📊 Proje Özeti</h2>
+
+    <div class="grid">
+
+        <div class="stat">
+
+            <div class="stat-number">
+                {toplam_sayfa}
+            </div>
+
+            <div class="stat-label">
+                Toplam Sayfa
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="stat-number">
+                {len(mimari)}
+            </div>
+
+            <div class="stat-label">
+                Mimari
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="stat-number">
+                {len(statik)}
+            </div>
+
+            <div class="stat-label">
+                Statik
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="stat-number">
+                {len(elektrik)}
+            </div>
+
+            <div class="stat-label">
+                Elektrik
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="stat-number">
+                {len(mekanik)}
+            </div>
+
+            <div class="stat-label">
+                Mekanik
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="stat-number">
+                {len(metrajlar)}
+            </div>
+
+            <div class="stat-label">
+                Tespit Edilen Ölçü
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <h2>🧱 Tespit Edilen Malzemeler</h2>
+
+    <div class="tags">
+
+        {malzeme_html}
+
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <h2>📐 Metrajlar</h2>
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>Malzeme</th>
+                    <th>Miktar</th>
+                    <th>Birim</th>
+                    <th>Sayfa</th>
+                    <th>Kaynak</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {metraj_html}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <h2>📑 Sayfa Sınıflandırması</h2>
+
+    <p>
+        📐 Mimari:
+        <strong>{mimari}</strong>
+    </p>
+
+    <p>
+        🏗️ Statik:
+        <strong>{statik}</strong>
+    </p>
+
+    <p>
+        ⚡ Elektrik:
+        <strong>{elektrik}</strong>
+    </p>
+
+    <p>
+        🔧 Mekanik:
+        <strong>{mekanik}</strong>
+    </p>
+
+    <p>
+        📄 Diğer:
+        <strong>{diger}</strong>
+    </p>
+
+</div>
+
+
+<div class="card">
+
+    <h2>🤖 Analiz Durumu</h2>
+
+    <p>
+        Sistem PDF dosyasını başarıyla okudu.
+    </p>
+
+    <p>
+        Sayfalar sınıflandırıldı ve
+        metin içerisindeki malzeme/metraj bilgileri
+        tarandı.
+    </p>
+
+    <div class="warning">
+
+        ⚠️ Bu sürüm ilk analiz motorudur.
+        Görsel üzerindeki ölçülerin,
+        çizimlerin ve DWG/IFC verilerinin
+        otomatik okunması sonraki aşamada
+        eklenecektir.
+
+    </div>
+
+</div>
+
+
+<a
+    href="/"
+    class="button"
+>
+    ← Yeni Proje Analiz Et
+</a>
+
+
+</div>
+
+</body>
+
+</html>
+"""
+
+
+# ============================================================
+# ANA SAYFA
+# ============================================================
+
+@app.get("/", response_class=HTMLResponse)
+async def ana_sayfa_route():
+
+    return ana_sayfa()
+
+
+# ============================================================
+# SAĞLIK KONTROLÜ
+# ============================================================
 
 @app.get("/health")
-def health():
+async def health():
 
     return {
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
-        "versiyon": "0.3.0"
+        "surum": "0.3.0"
     }
 
 
-# =========================================================
+# ============================================================
 # TEST
-# =========================================================
+# ============================================================
 
 @app.get("/test")
-def test():
+async def test():
 
     return {
         "durum": "başarılı",
@@ -461,42 +1071,39 @@ def test():
     }
 
 
-# =========================================================
-# PROJE PDF YÜKLEME
-# =========================================================
+# ============================================================
+# JSON API - PDF YÜKLE
+# ============================================================
 
 @app.post("/proje/yukle")
 async def proje_yukle(
     dosya: UploadFile = File(...)
 ):
 
+    if not dosya.filename:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Dosya seçilmedi."
+        )
+
+
+    if not dosya.filename.lower().endswith(".pdf"):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Sadece PDF dosyaları yüklenebilir."
+        )
+
+
     gecici_dosya = None
+
 
     try:
 
-        # -------------------------------------------------
-        # DOSYA KONTROLÜ
-        # -------------------------------------------------
-
-        if not dosya.filename:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Dosya seçilmedi."
-            )
-
-
-        if not dosya.filename.lower().endswith(".pdf"):
-
-            raise HTTPException(
-                status_code=400,
-                detail="Sadece PDF dosyaları yüklenebilir."
-            )
-
-
-        # -------------------------------------------------
-        # GEÇİCİ DOSYA
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # PDF'Yİ OKU
+        # ----------------------------------------------------
 
         with tempfile.NamedTemporaryFile(
             delete=False,
@@ -510,27 +1117,27 @@ async def proje_yukle(
             temp.write(icerik)
 
 
-        # -------------------------------------------------
-        # PDF OKUMA
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # PDF ANALİZ
+        # ----------------------------------------------------
 
         sonuc = pdf_oku(
             gecici_dosya
         )
 
 
-        # -------------------------------------------------
-        # PROJE ANALİZİ
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # PROJE AJANI
+        # ----------------------------------------------------
 
         analiz = ProjectAgent().analyze(
             sonuc
         )
 
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # CEVAP
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         return {
 
@@ -547,12 +1154,8 @@ async def proje_yukle(
 
             "analiz":
                 analiz
+
         }
-
-
-    except HTTPException:
-
-        raise
 
 
     except Exception as hata:
@@ -562,7 +1165,183 @@ async def proje_yukle(
             status_code=500,
 
             detail=
-                f"PDF işlenirken hata oluştu: {str(hata)}"
+                f"PDF okunurken hata oluştu: {str(hata)}"
+
+        )
+
+
+    finally:
+
+        if (
+            gecici_dosya
+            and os.path.exists(gecici_dosya)
+        ):
+
+            os.remove(
+                gecici_dosya
+            )
+
+
+# ============================================================
+# WEB FORMU - PDF ANALİZ ET
+#
+# BURADA FETCH YOK.
+# TARAYICI DOSYAYI DOĞRUDAN SUNUCUYA GÖNDERİYOR.
+# ============================================================
+
+@app.post(
+    "/proje/analiz-et",
+    response_class=HTMLResponse
+)
+async def proje_analiz_et(
+    dosya: UploadFile = File(...)
+):
+
+    if not dosya.filename:
+
+        return HTMLResponse(
+            """
+            <h2>❌ Dosya seçilmedi.</h2>
+            <a href="/">Geri dön</a>
+            """,
+            status_code=400
+        )
+
+
+    if not dosya.filename.lower().endswith(".pdf"):
+
+        return HTMLResponse(
+            """
+            <h2>❌ Sadece PDF dosyaları yüklenebilir.</h2>
+            <a href="/">Geri dön</a>
+            """,
+            status_code=400
+        )
+
+
+    gecici_dosya = None
+
+
+    try:
+
+        # ----------------------------------------------------
+        # GEÇİCİ PDF
+        # ----------------------------------------------------
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".pdf"
+        ) as temp:
+
+            gecici_dosya = temp.name
+
+            icerik = await dosya.read()
+
+            temp.write(icerik)
+
+
+        # ----------------------------------------------------
+        # PDF OKUMA
+        # ----------------------------------------------------
+
+        sonuc = pdf_oku(
+            gecici_dosya
+        )
+
+
+        # ----------------------------------------------------
+        # AI PROJE ANALİZİ
+        # ----------------------------------------------------
+
+        analiz = ProjectAgent().analyze(
+            sonuc
+        )
+
+
+        # ----------------------------------------------------
+        # RAPOR SAYFASI
+        # ----------------------------------------------------
+
+        return sonuc_sayfasi(
+            dosya.filename,
+            sonuc,
+            analiz
+        )
+
+
+    except Exception as hata:
+
+        hata_metni = html.escape(
+            str(hata)
+        )
+
+        return HTMLResponse(
+
+             f"""
+            <!DOCTYPE html>
+
+            <html lang="tr">
+
+            <head>
+
+            <meta charset="UTF-8">
+
+            <meta name="viewport"
+                  content="width=device-width,
+                           initial-scale=1.0">
+
+            <title>Hata</title>
+
+            <style>
+
+            body {{
+                background:#090d14;
+                color:white;
+                font-family:Arial;
+                padding:30px;
+            }}
+
+            .error {{
+                max-width:700px;
+                margin:auto;
+                background:#25151a;
+                border:1px solid #8b2635;
+                border-radius:20px;
+                padding:30px;
+            }}
+
+            a {{
+                color:#a78bfa;
+            }}
+
+            </style>
+
+            </head>
+
+            <body>
+
+            <div class="error">
+
+                <h1>❌ Analiz sırasında hata oluştu</h1>
+
+                <p>
+                    {hata_metni}
+                </p>
+
+                <br>
+
+                <a href="/">
+                    ← Ana sayfaya dön
+                </a>
+
+            </div>
+
+            </body>
+
+            </html>
+            """,
+
+            status_code=500
         )
 
 
