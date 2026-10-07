@@ -4,3 +4,4 @@ python-multipart
 pydantic
 pypdf
 PyMuPDF>=1.24,<2
+Pillow>=10,<13
