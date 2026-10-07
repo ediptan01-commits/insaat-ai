@@ -164,3 +164,18 @@ Format:
             "durum": "hata",
             "mesaj": str(e)
         }
+def gorsel_dosyasi_oku(dosya_yolu: str) -> dict:
+    """
+    Tekil JPG/PNG/WEBP görselini proje analiz formatına dönüştürür.
+    """
+
+    return {
+        "sayfa_sayisi": 1,
+        "sayfalar": [
+            {
+                "sayfa": 1,
+                "metin": "",
+                "gorsel_yolu": dosya_yolu
+            }
+        ]
+    }
