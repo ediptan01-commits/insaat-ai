@@ -2,12 +2,13 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
-from servisler.image_service import gorsel_dosyasi_oku
+from servisler.image_service import gorsel_dosyasi_oku, gorsel_ai_analiz
 from agents.project_agent import ProjectAgent
 
 import tempfile
 import os
 import html
+import fitz
 
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
