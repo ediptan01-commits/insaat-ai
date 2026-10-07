@@ -2,11 +2,24 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
+from servisler.image_service import gorsel_dosyasi_oku
 from agents.project_agent import ProjectAgent
 
 import tempfile
 import os
 import html
+
+
+DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+
+
+def proje_dosyasi_oku(dosya_yolu: str, dosya_adi: str) -> dict:
+    """PDF veya tekil görsel dosyasını ortak proje analiz yapısına dönüştürür."""
+
+    uzanti = os.path.splitext(dosya_adi)[1].lower()
+    if uzanti == ".pdf":
+        return pdf_oku(dosya_yolu)
+    return gorsel_dosyasi_oku(dosya_yolu)
 
 
 # ============================================================
@@ -271,13 +284,13 @@ input[type="file"] {
             </div>
 
             <div class="upload-title">
-                Proje PDF'sini yükleyin
+                Proje dosyanızı yükleyin
             </div>
 
             <div class="upload-text">
-                Mimari veya teknik projenizi yükleyin.
-                Sistem PDF'yi okuyarak proje bilgilerini,
-                metrajları ve malzemeleri analiz eder.
+                PDF, JPG/JPEG, PNG veya WEBP proje dosyanızı yükleyin.
+                PDF metni çıkarılır; görsel dosyaları görsel analiz
+                arayüzüne hazırlanır.
             </div>
 
 
@@ -298,7 +311,7 @@ input[type="file"] {
                     <input
                         type="file"
                         name="dosya"
-                        accept=".pdf,application/pdf"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
                         required
                     >
 
@@ -1004,7 +1017,7 @@ td {{
     <h2>🤖 Analiz Durumu</h2>
 
     <p>
-        Sistem PDF dosyasını başarıyla okudu.
+        Sistem yüklenen proje dosyasını başarıyla okudu.
     </p>
 
     <p>
@@ -1099,11 +1112,12 @@ async def proje_yukle(
         )
 
 
-    if not dosya.filename.lower().endswith(".pdf"):
+    uzanti = os.path.splitext(dosya.filename)[1].lower()
+    if uzanti not in DESTEKLENEN_UZANTILAR:
 
         raise HTTPException(
             status_code=400,
-            detail="Sadece PDF dosyaları yüklenebilir."
+            detail="PDF, JPG/JPEG, PNG veya WEBP dosyaları yüklenebilir."
         )
 
 
@@ -1118,7 +1132,7 @@ async def proje_yukle(
 
         with tempfile.NamedTemporaryFile(
             delete=False,
-            suffix=".pdf"
+            suffix=uzanti
         ) as temp:
 
             gecici_dosya = temp.name
@@ -1129,11 +1143,12 @@ async def proje_yukle(
 
 
         # ----------------------------------------------------
-        # PDF ANALİZ
+        # PDF VEYA GÖRSEL ANALİZİ
         # ----------------------------------------------------
 
-        sonuc = pdf_oku(
-            gecici_dosya
+        sonuc = proje_dosyasi_oku(
+            gecici_dosya,
+            dosya.filename
         )
 
 
@@ -1155,7 +1170,7 @@ async def proje_yukle(
             "durum": "başarılı",
 
             "mesaj":
-                "Proje PDF'si başarıyla okundu ve analiz edildi.",
+                "Proje dosyası başarıyla okundu ve analiz edildi.",
 
             "dosya_adi":
                 dosya.filename,
@@ -1179,7 +1194,7 @@ async def proje_yukle(
             status_code=500,
 
             detail=
-                f"PDF okunurken hata oluştu: {str(hata)}"
+                f"Proje dosyası okunurken hata oluştu: {str(hata)}"
 
         )
 
@@ -1222,11 +1237,12 @@ async def proje_analiz_et(
         )
 
 
-    if not dosya.filename.lower().endswith(".pdf"):
+    uzanti = os.path.splitext(dosya.filename)[1].lower()
+    if uzanti not in DESTEKLENEN_UZANTILAR:
 
         return HTMLResponse(
             """
-            <h2>❌ Sadece PDF dosyaları yüklenebilir.</h2>
+            <h2>❌ PDF, JPG/JPEG, PNG veya WEBP dosyaları yüklenebilir.</h2>
             <a href="/">Geri dön</a>
             """,
             status_code=400
@@ -1244,7 +1260,7 @@ async def proje_analiz_et(
 
         with tempfile.NamedTemporaryFile(
             delete=False,
-            suffix=".pdf"
+            suffix=uzanti
         ) as temp:
 
             gecici_dosya = temp.name
@@ -1255,11 +1271,12 @@ async def proje_analiz_et(
 
 
         # ----------------------------------------------------
-        # PDF OKUMA
+        # PDF VEYA GÖRSEL OKUMA
         # ----------------------------------------------------
 
-        sonuc = pdf_oku(
-            gecici_dosya
+        sonuc = proje_dosyasi_oku(
+            gecici_dosya,
+            dosya.filename
         )
 
 
