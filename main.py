@@ -22,6 +22,67 @@ def proje_dosyasi_oku(dosya_yolu: str, dosya_adi: str) -> dict:
         return pdf_oku(dosya_yolu)
     return gorsel_dosyasi_oku(dosya_yolu)
 
+def pdf_gorsel_ai_analiz(pdf_yolu: str, maksimum_sayfa: int = 3) -> dict:
+    """
+    PDF sayfalarını görsele çevirir ve görsel AI ile analiz eder.
+    İlk aşamada maliyet ve test amacıyla en fazla 3 sayfa analiz edilir.
+    """
+
+    sonuclar = []
+
+    try:
+        belge = fitz.open(pdf_yolu)
+
+        toplam_sayfa = len(belge)
+        analiz_sayisi = min(toplam_sayfa, maksimum_sayfa)
+
+        for indeks in range(analiz_sayisi):
+
+            sayfa = belge[indeks]
+
+            matris = fitz.Matrix(2, 2)
+            pixmap = sayfa.get_pixmap(
+                matrix=matris,
+                alpha=False
+            )
+
+            gecici_resim = tempfile.NamedTemporaryFile(
+                suffix=".png",
+                delete=False
+            )
+
+            resim_yolu = gecici_resim.name
+            gecici_resim.close()
+
+            pixmap.save(resim_yolu)
+
+            try:
+                analiz = gorsel_ai_analiz(resim_yolu)
+
+                sonuclar.append({
+                    "sayfa": indeks + 1,
+                    "analiz": analiz
+                })
+
+            finally:
+                if os.path.exists(resim_yolu):
+                    os.remove(resim_yolu)
+
+        belge.close()
+
+        return {
+            "durum": "basarili",
+            "toplam_pdf_sayfasi": toplam_sayfa,
+            "analiz_edilen_sayfa": analiz_sayisi,
+            "sayfalar": sonuclar
+        }
+
+    except Exception as e:
+
+        return {
+            "durum": "hata",
+            "mesaj": str(e)
+        }
 
 # ============================================================
 # UYGULAMA
@@ -1159,6 +1220,9 @@ async def proje_yukle(
 
         analiz = ProjectAgent().analyze(
             sonuc
+            gorsel_analizi = pdf_gorsel_ai_analiz(gecici_dosya)
+
+analiz["gorsel_analizi"] = gorsel_analizi
         )
 
 
