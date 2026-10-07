@@ -516,6 +516,14 @@ class ProjectAgent:
             "sayfalar",
             []
         )
+        gorsel_girdisi = project_data.get(
+            "gorsel_analiz_girdisi",
+            {}
+        )
+        gorsel_girdi_sayfasi = gorsel_girdisi.get(
+            "sayfalar",
+            []
+        )
 
         mimari = []
         statik = []
@@ -714,6 +722,18 @@ class ProjectAgent:
 
             "pencereler":
                 pencereler,
+
+            # Görüntüler bu aşamada yalnızca hazırlanır. Görsel model
+            # çağrısı eklenirken bu girdi arayüzü kullanılabilir.
+            "gorsel_analizi": {
+                "durum": (
+                    "girdi_hazir"
+                    if gorsel_girdi_sayfasi
+                    else "girdi_yok"
+                ),
+                "girdi_sayfa_sayisi": len(gorsel_girdi_sayfasi),
+                "arayuz": "gorsel_analiz_girdisi.sayfalar[].veri_url",
+            },
 
             "durum":
                 "analiz_tamamlandi"
