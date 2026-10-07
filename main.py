@@ -419,6 +419,14 @@ def sonuc_sayfasi(
         0
     )
 
+    gorsel_sayfa_sayisi = analiz.get(
+        "gorsel_analizi",
+        {}
+    ).get(
+        "girdi_sayfa_sayisi",
+        0
+    )
+
     mimari = analiz.get(
         "sayfa_siniflari",
         {}
@@ -1005,13 +1013,16 @@ td {{
         tarandı.
     </p>
 
+    <p>
+        🖼️ {gorsel_sayfa_sayisi} sayfanın görseli,
+        görsel AI entegrasyonuna aktarılmak üzere hazırlandı.
+    </p>
+
     <div class="warning">
 
-        ⚠️ Bu sürüm ilk analiz motorudur.
-        Görsel üzerindeki ölçülerin,
-        çizimlerin ve DWG/IFC verilerinin
-        otomatik okunması sonraki aşamada
-        eklenecektir.
+        ⚠️ Bu sürüm sayfa görsellerini çıkarır ve aktarım arayüzünü hazırlar.
+        Görseller henüz bir görsel AI modeline gönderilmiyor; bu nedenle
+        çizim ve ölçü tespitleri mevcut raporda metin tabanlıdır.
 
     </div>
 
@@ -1151,6 +1162,9 @@ async def proje_yukle(
 
             "sayfa_sayisi":
                 sonuc["sayfa_sayisi"],
+
+            "gorsel_analizi":
+                analiz.get("gorsel_analizi", {}),
 
             "analiz":
                 analiz
