@@ -1218,12 +1218,11 @@ async def proje_yukle(
         # PROJE AJANI
         # ----------------------------------------------------
 
-        analiz = ProjectAgent().analyze(
-            sonuc
-            gorsel_analizi = pdf_gorsel_ai_analiz(gecici_dosya)
+analiz = ProjectAgent().analyze(sonuc)
+
+gorsel_analizi = pdf_gorsel_ai_analiz(gecici_dosya)
 
 analiz["gorsel_analizi"] = gorsel_analizi
-        )
 
 
         # ----------------------------------------------------
