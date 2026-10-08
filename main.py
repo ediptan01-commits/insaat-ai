@@ -1093,13 +1093,32 @@ td {{
         görsel AI entegrasyonuna aktarılmak üzere hazırlandı.
     </p>
 
-    <div class="warning">
+<div class="warning">
 
-        ⚠️ Bu sürüm sayfa görsellerini çıkarır ve aktarım arayüzünü hazırlar.
-        Görseller henüz bir görsel AI modeline gönderilmiyor; bu nedenle
-        çizim ve ölçü tespitleri mevcut raporda metin tabanlıdır.
+    <h3>🤖 Görsel AI Analizi</h3>
 
-    </div>
+    <p>
+        Görsel AI analiz durumu:
+        <strong>
+            {analiz.get("gorsel_analizi", {}).get("durum", "bilinmiyor")}
+        </strong>
+    </p>
+
+    <p>
+        Analiz edilen sayfa:
+        <strong>
+            {analiz.get("gorsel_analizi", {}).get("analiz_edilen_sayfa", 0)}
+        </strong>
+    </p>
+
+    <p>
+        PDF toplam sayfa:
+        <strong>
+            {analiz.get("gorsel_analizi", {}).get("toplam_pdf_sayfasi", 0)}
+        </strong>
+    </p>
+
+  </div>
 
 </div>
 
