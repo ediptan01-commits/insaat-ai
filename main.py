@@ -84,6 +84,41 @@ def pdf_gorsel_ai_analiz(pdf_yolu: str, maksimum_sayfa: int = 3) -> dict:
             "mesaj": str(e)
         }
 
+def dosya_gorsel_ai_analiz(dosya_yolu: str, dosya_adi: str) -> dict:
+    """
+    PDF ve doğrudan yüklenen JPG/PNG/WEBP dosyalarını
+    doğru görsel AI analiz yoluna gönderir.
+    """
+
+    uzanti = os.path.splitext(dosya_adi)[1].lower()
+
+    if uzanti in {".jpg", ".jpeg", ".png", ".webp"}:
+
+        sonuc = gorsel_ai_analiz(dosya_yolu)
+
+        return {
+            "durum": sonuc.get("durum", "bilinmiyor"),
+            "dosya_turu": "gorsel",
+            "analiz_edilen_sayfa": 1,
+            "toplam_sayfa": 1,
+            "sayfalar": [
+                {
+                    "sayfa": 1,
+                    "analiz": sonuc
+                }
+            ]
+        }
+
+    if uzanti == ".pdf":
+        sonuc = pdf_gorsel_ai_analiz(dosya_yolu)
+        sonuc["dosya_turu"] = "pdf"
+        return sonuc
+
+    return {
+        "durum": "hata",
+        "mesaj": "Desteklenmeyen dosya türü."
+    }
+
 # ============================================================
 # UYGULAMA
 # ============================================================
