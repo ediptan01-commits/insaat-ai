@@ -1352,6 +1352,10 @@ async def proje_analiz_et(
             sonuc
         )
 
+        gorsel_analizi = pdf_gorsel_ai_analiz(gecici_dosya)
+
+        analiz["gorsel_analizi"] = gorsel_analizi
+
 
         # ----------------------------------------------------
         # RAPOR SAYFASI
