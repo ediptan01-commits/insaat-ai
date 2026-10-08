@@ -1274,7 +1274,10 @@ async def proje_yukle(
 
         analiz = ProjectAgent().analyze(sonuc)
 
-        gorsel_analizi = pdf_gorsel_ai_analiz(gecici_dosya)
+        gorsel_analizi = dosya_gorsel_ai_analiz(
+        gecici_dosya,
+        dosya.filename
+        )
 
         analiz["gorsel_analizi"] = gorsel_analizi
 
