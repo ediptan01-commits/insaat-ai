@@ -78,7 +78,6 @@ def _fiyat_arastir(kalem_ozeti, bolge, api_key):
         }],
         "include": ["web_search_call.action.sources"],
         "max_output_tokens": 3000,
-        "text": {"format": {"type": "json_object"}},
     }
     request = urllib.request.Request(
         "https://api.openai.com/v1/responses",
