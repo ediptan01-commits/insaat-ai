@@ -93,7 +93,7 @@ def _analiz_bilesenlerini_dogrula() -> None:
 app = FastAPI(
     title="İnşaat AI",
     description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
-    version="0.6.18"
+    version="0.6.19"
 )
 
 
@@ -985,6 +985,12 @@ def sonuc_sayfasi(
     )
     maliyet_durum = html.escape(str(maliyet_analizi.get("durum", "fiyat_bekliyor")))
     maliyet_bolge = html.escape(str(maliyet_analizi.get("bolge", "Türkiye geneli")))
+    fiyat_hatalari = maliyet_analizi.get("fiyat_arama_hatalari", [])
+    fiyat_hatasi_html = "".join(
+        f"<li>{html.escape(str(hata.get('mesaj', 'Bilinmeyen fiyat arama hatası')))}</li>"
+        for hata in fiyat_hatalari
+        if isinstance(hata, dict)
+    )
     fiyatlanan_kalem_sayisi = maliyet_analizi.get("fiyatlanan_kalem_sayisi", 0)
     toplam_fiyat_kalemi = maliyet_analizi.get("toplam_kalem_sayisi", 0)
     fiyat_kapsami = (
@@ -1519,6 +1525,7 @@ td {{
     <p>Fiyat araştırma durumu: <strong>{maliyet_durum}</strong></p>
     <p>Fiyat bölgesi: <strong>{maliyet_bolge}</strong> {f'• Referans tarihi: {maliyet_tarihi}' if maliyet_tarihi else ''}</p>
     <p>Fiyat kapsamı: <strong>{html.escape(fiyat_kapsami)}</strong></p>
+    {f'<p class="muted">Fiyat sağlayıcısı yanıtı:<ul>{fiyat_hatasi_html}</ul></p>' if fiyat_hatasi_html else ''}
     <p>Kaynaklı kalemlerin yaklaşık toplamı: <strong>{toplam_maliyet_html}</strong></p>
     <p>Miktar türüne göre: belgede yazılı <strong>{belge_miktari_toplami}</strong> • öngörülen <strong>{ongoru_miktari_toplami}</strong></p>
     <div class="table-container">
@@ -1626,7 +1633,7 @@ async def health():
     return {
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
-        "surum": "0.6.18",
+        "surum": "0.6.19",
         "analiz_bilesenleri_uyumlu": (
             getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1) == 2
             and getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1) == 2

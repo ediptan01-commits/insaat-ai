@@ -90,7 +90,19 @@ def _fiyat_arastir(kalem_ozeti, bolge, api_key):
         with urllib.request.urlopen(request, timeout=120) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
-        return [], set(), f"HTTP {error.code}"
+        try:
+            error_body = json.loads(error.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            error_body = {}
+        api_error = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+        error_code = api_error.get("code") if isinstance(api_error, dict) else None
+        error_message = api_error.get("message") if isinstance(api_error, dict) else None
+        detail = f"HTTP {error.code}"
+        if error_code:
+            detail += f" ({error_code})"
+        if error_message:
+            detail += ": " + " ".join(str(error_message).split())[:240]
+        return [], set(), detail
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return [], set(), "Servis hatası veya geçersiz yanıt"
 
