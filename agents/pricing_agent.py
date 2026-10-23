@@ -80,12 +80,13 @@ def _urun_tanimi_eksik(kalem):
         str(kalem.get(campo, ""))
         for campo in ("kaynak_metni", "kaynak", "urun_tanimi")
     ).casefold()
-    if "iç kapı" in ad or "ic kapi" in ad:
+    if "kapı" in ad or "kapi" in ad:
         kapı_tipi_belirtili = any(
             tur in belge_notu for tur in ("panel", "melamin", "lake", "masif")
         )
         kapı_olcusu_belirtili = bool(
-            re.search(r"\d+(?:[.,]\d+)?\s*(?:cm)?\s*[×x]\s*\d+(?:[.,]\d+)?\s*cm?\b", belge_notu)
+            re.search(r"\d{2,3}\s*[×x]\s*\d{2,3}", belge_notu)
+            and "cm" in belge_notu
         )
         if kapı_tipi_belirtili and kapı_olcusu_belirtili:
             return False
