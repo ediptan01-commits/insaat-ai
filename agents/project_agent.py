@@ -1,5 +1,9 @@
 import re
 from servisler.vision_service import gorsel_ai_analiz
+from servisler.quantity_service import miktarlari_hesapla
+from agents.pricing_agent import guncel_maliyet_hesapla
+
+SAYI_DESENI = r"(?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d+)?"
 
 
 class ProjectAgent:
@@ -42,6 +46,21 @@ class ProjectAgent:
             "birimler": ["m²", "m2", "adet"]
         },
 
+        "gazbeton yapıştırıcısı": {
+            "anahtarlar": ["gazbeton yapıştırıcı", "ytong yapıştırıcı"],
+            "birimler": ["kg", "ton"]
+        },
+
+        "bims blok": {
+            "anahtarlar": ["bims blok", "bims briket", "bims"],
+            "birimler": ["m²", "m2", "adet"]
+        },
+
+        "beton briket": {
+            "anahtarlar": ["beton briket", "briket"],
+            "birimler": ["m²", "m2", "adet"]
+        },
+
         "çimento": {
             "anahtarlar": ["çimento", "cimento"],
             "birimler": ["kg", "ton"]
@@ -75,6 +94,26 @@ class ProjectAgent:
         "seramik": {
             "anahtarlar": ["seramik"],
             "birimler": ["m²", "m2", "adet"]
+        },
+
+        "seramik yapıştırıcısı": {
+            "anahtarlar": ["seramik yapıştırıcı", "fayans yapıştırıcı", "karo yapıştırıcı"],
+            "birimler": ["kg", "ton"]
+        },
+
+        "derz dolgusu": {
+            "anahtarlar": ["derz dolgusu", "derz dolgu"],
+            "birimler": ["kg", "ton"]
+        },
+
+        "duvar örme harcı": {
+            "anahtarlar": ["duvar örme harcı", "duvar örgü harcı", "örgü harcı"],
+            "birimler": ["kg", "ton"]
+        },
+
+        "hazır sıva harcı": {
+            "anahtarlar": ["hazır sıva harcı", "hazir siva harci", "makine sıva harcı"],
+            "birimler": ["kg", "ton"]
         },
 
         "fayans": {
@@ -189,7 +228,7 @@ class ProjectAgent:
     @staticmethod
     def sayi_oku(deger):
 
-        deger = deger.strip()
+        deger = deger.strip().replace(" ", "")
 
         # Türkçe binlik kullanım:
         # 4.850
@@ -210,32 +249,17 @@ class ProjectAgent:
             else:
                 deger = deger.replace(",", "")
 
-        elif "," in deger:
-
-            parcalar = deger.split(",")
-
-            # 4,850 -> 4850
-            if (
+        elif "," in deger or "." in deger:
+            ayrac = "," if "," in deger else "."
+            parcalar = deger.split(ayrac)
+            if len(parcalar) > 2 or (
                 len(parcalar) == 2
                 and len(parcalar[1]) == 3
                 and parcalar[0].isdigit()
             ):
                 deger = "".join(parcalar)
-
-            else:
+            elif ayrac == ",":
                 deger = deger.replace(",", ".")
-
-        elif "." in deger:
-
-            parcalar = deger.split(".")
-
-            # 4.850 -> 4850
-            if (
-                len(parcalar) == 2
-                and len(parcalar[1]) == 3
-                and parcalar[0].isdigit()
-            ):
-                deger = "".join(parcalar)
 
         try:
             return float(deger)
@@ -337,7 +361,7 @@ class ProjectAgent:
         ]
 
         alan_regex = re.compile(
-            r"([0-9]+(?:[.,][0-9]+)?)"
+            rf"({SAYI_DESENI})"
             r"\s*m(?:²|2)"
         )
 
@@ -395,7 +419,7 @@ class ProjectAgent:
             ):
 
                 adet_eslesme = re.search(
-                    r"(\d+(?:[.,]\d+)?)\s*adet",
+                    rf"({SAYI_DESENI})\s*adet",
                     kucuk
                 )
 
@@ -423,7 +447,7 @@ class ProjectAgent:
             ):
 
                 adet_eslesme = re.search(
-                    r"(\d+(?:[.,]\d+)?)\s*adet",
+                    rf"({SAYI_DESENI})\s*adet",
                     kucuk
                 )
 
@@ -463,7 +487,7 @@ class ProjectAgent:
 
         # Ölçü regex'i
         regex = re.compile(
-            r"(\d+(?:[.,]\d+)?)"
+            rf"({SAYI_DESENI})"
             r"\s*"
             r"(m²|m2|m³|m3|m|mt|metre|"
             r"metretül|metretul|adet|kg|ton|cm|mm|lt|l)"
@@ -511,7 +535,14 @@ class ProjectAgent:
     # ANA ANALİZ
     # ============================================================
 
-    def analyze(self, project_data):
+    def analyze(
+        self,
+        project_data,
+        fiyat_bolgesi="Türkiye geneli",
+        fire_yuzdesi=10,
+        tavan_yuksekligi=2.8,
+        olcu_birimi_varsayimi="belirsiz",
+    ):
 
         sayfalar = project_data.get(
             "sayfalar",
@@ -535,9 +566,11 @@ class ProjectAgent:
         malzemeler = set()
 
         metrajlar = []
+        metraj_belirsizlikleri = []
         alanlar = []
         kapilar = []
         pencereler = []
+        gorsel_analizi = gorsel_ai_analiz(project_data)
 
         # ========================================================
         # SAYFALARI İŞLE
@@ -610,43 +643,45 @@ class ProjectAgent:
             # MALZEME METRAJI
             # ====================================================
 
-            for malzeme, bilgi in (
-                self.MALZEMELER.items()
-            ):
-
-                anahtarlar = bilgi[
-                    "anahtarlar"
-                ]
-
-                izinli_birimler = bilgi[
-                    "birimler"
-                ]
-
-                for satir in satirlar:
-
-                    if not any(
-                        anahtar in satir
-                        for anahtar in anahtarlar
-                    ):
+            for satir in satirlar:
+                adaylar = []
+                for malzeme, bilgi in self.MALZEMELER.items():
+                    anahtarlar = bilgi["anahtarlar"]
+                    if not any(anahtar in satir for anahtar in anahtarlar):
                         continue
-
                     bulunan = self.metraj_tespit_et(
                         satir,
                         malzeme,
                         anahtarlar,
-                        izinli_birimler,
-                        sayfa_no
+                        bilgi["birimler"],
+                        sayfa_no,
                     )
+                    adaylar.extend(bulunan)
 
-                    if bulunan:
-
-                        malzemeler.add(
-                            malzeme
-                        )
-
-                        metrajlar.extend(
-                            bulunan
-                        )
+                # A single line may mention synonyms (e.g. seramik/fayans)
+                # or several products that share the same amount and unit.
+                # If the parser cannot map that occurrence to one material,
+                # keep it out of priced quantities and show the source line.
+                grouped_candidates = {}
+                for item in adaylar:
+                    grouped_candidates.setdefault((item["miktar"], item["birim"]), []).append(item)
+                for (_, _), group in grouped_candidates.items():
+                    candidate_materials = {item["malzeme"] for item in group}
+                    if len(candidate_materials) > 1:
+                        belirsizlik = {
+                            "sayfa": sayfa_no,
+                            "kaynak": satir.strip(),
+                            "aday_malzemeler": sorted(candidate_materials),
+                            "miktar": group[0]["miktar"],
+                            "birim": group[0]["birim"],
+                            "neden": "Aynı miktar ve birim birden fazla malzeme adıyla eşleşti; çift sayımı önlemek için fiyatlandırmaya alınmadı.",
+                        }
+                        if belirsizlik not in metraj_belirsizlikleri:
+                            metraj_belirsizlikleri.append(belirsizlik)
+                        continue
+                    item = group[0]
+                    malzemeler.add(item["malzeme"])
+                    metrajlar.append(item)
 
         # ========================================================
         # TEKRARLARI TEMİZLE
@@ -676,6 +711,41 @@ class ProjectAgent:
             )
 
         metrajlar = benzersiz_metrajlar
+
+        # Metin içeriği bulunmayan taranmış paftaları, görsel ajanın pafta
+        # sınıflandırmasıyla rapora ekle. Metin sınıflandırmasını değiştirme.
+        metinsiz_sayfalar = {
+            s.get("sayfa") for s in sayfalar if not (s.get("metin") or "").strip()
+        }
+        disiplin_listeleri = {
+            "mimari": mimari,
+            "statik": statik,
+            "elektrik": elektrik,
+            "mekanik": mekanik,
+            "diger": diger,
+        }
+        gorsel_bulgular = gorsel_analizi.get("bulgular", {})
+        for pafta in gorsel_bulgular.get("sayfalar", []) if isinstance(gorsel_bulgular, dict) else []:
+            sayfa_no = pafta.get("sayfa")
+            disiplin = str(pafta.get("disiplin", "")).casefold().strip()
+            if sayfa_no not in metinsiz_sayfalar or disiplin not in disiplin_listeleri:
+                continue
+            for liste in disiplin_listeleri.values():
+                if sayfa_no in liste:
+                    liste.remove(sayfa_no)
+            if sayfa_no not in disiplin_listeleri[disiplin]:
+                disiplin_listeleri[disiplin].append(sayfa_no)
+        for liste in disiplin_listeleri.values():
+            liste.sort(key=lambda deger: (deger is None, deger))
+
+        malzeme_miktarlari = miktarlari_hesapla(
+            gorsel_analizi,
+            metrajlar,
+            fire_yuzdesi=fire_yuzdesi,
+            tavan_yuksekligi=tavan_yuksekligi,
+            olcu_birimi_varsayimi=olcu_birimi_varsayimi,
+        )
+        maliyet_analizi = guncel_maliyet_hesapla(malzeme_miktarlari, fiyat_bolgesi)
 
         # ========================================================
         # SONUÇ
@@ -715,6 +785,9 @@ class ProjectAgent:
             "metrajlar":
                 metrajlar,
 
+            "metraj_belirsizlikleri":
+                metraj_belirsizlikleri,
+
             "alanlar":
                 alanlar,
 
@@ -724,7 +797,11 @@ class ProjectAgent:
             "pencereler":
                 pencereler,
 
-            "gorsel_analizi": gorsel_ai_analiz(project_data),
+            "gorsel_analizi": gorsel_analizi,
+
+            "malzeme_miktarlari": malzeme_miktarlari,
+
+            "maliyet_analizi": maliyet_analizi,
 
             "durum":
                 "analiz_tamamlandi"
