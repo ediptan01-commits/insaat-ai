@@ -3,6 +3,5 @@ uvicorn[standard]
 python-multipart
 pydantic
 pypdf
-openai
-Pillow
-PyMuPDF
+PyMuPDF>=1.24,<2
+Pillow>=10,<13
