@@ -16,7 +16,7 @@ import re
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 MAKS_YUKLEME_BAYT = 50 * 1024 * 1024
-APP_VERSION = "0.6.30"
+APP_VERSION = "0.6.32"
 
 
 async def _yuklemeyi_gecici_dosyaya_yaz(dosya: UploadFile, uzanti: str) -> str:
@@ -126,7 +126,9 @@ def ana_sayfa():
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<meta name="theme-color" content="#0b0f17">
 
 <title>İnşaat AI</title>
 
@@ -154,6 +156,8 @@ body {
         sans-serif;
 
     min-height: 100vh;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
 }
 
 .container {
@@ -252,6 +256,61 @@ input[type="file"] {
     width: 100%;
     color: white;
     font-size: 16px;
+    line-height: 1.4;
+}
+
+input[type="file"]::file-selector-button {
+    min-height: 46px;
+    margin: 0 12px 8px 0;
+    padding: 10px 14px;
+    border: 1px solid #66748b;
+    border-radius: 10px;
+    background: #263449;
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.file-status,
+.upload-status {
+    display: block;
+    margin: 10px 0 0;
+    color: #b9c5d6;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.file-status.is-error {
+    color: #ff9ca8;
+}
+
+.upload-status:not(:empty) {
+    margin: 14px auto 0;
+    max-width: 620px;
+    padding: 12px 14px;
+    border: 1px solid #38465b;
+    border-radius: 12px;
+    background: #111b2a;
+    text-align: left;
+}
+
+.upload-status.is-loading::before {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 9px;
+    border: 2px solid #8896ab;
+    border-top-color: #c4b5fd;
+    border-radius: 50%;
+    content: "";
+    vertical-align: -2px;
+    animation: upload-spin 0.9s linear infinite;
+}
+
+@keyframes upload-spin {
+    to { transform: rotate(360deg); }
 }
 
 .region-field {
@@ -314,6 +373,7 @@ input[type="file"] {
     transition: 0.2s;
 
     text-decoration: none;
+    min-height: 56px;
 }
 
 .button:hover {
@@ -358,6 +418,130 @@ input[type="file"] {
     color: #718096;
     font-size: 14px;
     margin-top: 30px;
+}
+
+:focus-visible {
+    outline: 3px solid #c4b5fd;
+    outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+    .container {
+        width: 100%;
+        padding: 12px 12px max(32px, env(safe-area-inset-bottom));
+    }
+
+    .header {
+        padding: 16px 8px 20px;
+    }
+
+    .logo {
+        font-size: 46px;
+    }
+
+    h1 {
+        font-size: clamp(30px, 8vw, 38px);
+    }
+
+    .subtitle {
+        font-size: 16px;
+    }
+
+    .card {
+        padding: 16px;
+        margin-bottom: 14px;
+        border-radius: 20px;
+    }
+
+    .upload-area {
+        padding: 20px 12px;
+        border-radius: 18px;
+    }
+
+    .upload-icon {
+        font-size: 52px;
+        margin-bottom: 8px;
+    }
+
+    .upload-title {
+        font-size: 22px;
+    }
+
+    .upload-text {
+        font-size: 16px;
+        margin-bottom: 20px;
+    }
+
+    .processing-note {
+        font-size: 13px;
+    }
+
+    .file-box {
+        padding: 12px;
+    }
+
+    .region-field {
+        margin-bottom: 16px;
+    }
+
+    .region-field input,
+    .region-field select {
+        min-height: 48px;
+        padding: 12px;
+        font-size: 16px;
+    }
+
+    .region-field small {
+        display: block;
+        margin-top: 6px;
+        line-height: 1.45;
+    }
+
+    .button {
+        min-height: 54px;
+        padding: 15px 12px;
+        border-radius: 14px;
+        font-size: 18px;
+    }
+
+    .features-title {
+        font-size: 25px;
+    }
+
+    .feature {
+        padding: 17px;
+        border-radius: 16px;
+    }
+
+    .feature-icon {
+        float: none;
+        display: inline-block;
+        margin: 0 9px 0 0;
+        font-size: 26px;
+        vertical-align: middle;
+    }
+
+    .feature h3 {
+        display: inline-block;
+        vertical-align: middle;
+        font-size: 19px;
+    }
+
+    .feature p {
+        font-size: 15px;
+        margin-top: 8px;
+    }
+}
+
+@media (max-width: 360px) {
+    .container { padding-right: 8px; padding-left: 8px; }
+    .card { padding: 13px; }
+    .upload-area { padding-right: 9px; padding-left: 9px; }
+    .button { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
 </style>
@@ -414,6 +598,7 @@ input[type="file"] {
             -->
 
             <form
+                id="project-upload-form"
                 action="/proje/analiz-et"
                 method="post"
                 enctype="multipart/form-data"
@@ -422,11 +607,14 @@ input[type="file"] {
                 <div class="file-box">
 
                     <input
+                        id="project-file"
                         type="file"
                         name="dosya"
                         accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                        aria-describedby="file-status"
                         required
                     >
+                    <p id="file-status" class="file-status" aria-live="polite">PDF veya görsel dosyanızı seçin. En fazla 50 MB.</p>
 
                 </div>
 
@@ -471,11 +659,14 @@ input[type="file"] {
 
 
                 <button
+                    id="project-submit"
                     type="submit"
                     class="button"
                 >
                     🚀 Projeyi Analiz Et
                 </button>
+
+                <p id="upload-status" class="upload-status" role="status" aria-live="polite"></p>
 
             </form>
 
@@ -562,6 +753,55 @@ input[type="file"] {
     </div>
 
 </div>
+
+<script>
+(() => {
+    const form = document.getElementById("project-upload-form");
+    const fileInput = document.getElementById("project-file");
+    const fileStatus = document.getElementById("file-status");
+    const submitButton = document.getElementById("project-submit");
+    const uploadStatus = document.getElementById("upload-status");
+    if (!form || !fileInput || !fileStatus || !submitButton || !uploadStatus) return;
+
+    const maxBytes = 50 * 1024 * 1024;
+    const formatSize = (bytes) => bytes >= 1024 * 1024
+        ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+    fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        fileStatus.classList.remove("is-error");
+        fileInput.setCustomValidity("");
+        if (!file) {
+            fileStatus.textContent = "PDF veya görsel dosyanızı seçin. En fazla 50 MB.";
+            return;
+        }
+        if (file.size > maxBytes) {
+            fileInput.setCustomValidity("Dosya 50 MB sınırını aşıyor. Daha küçük bir dosya seçin.");
+            fileStatus.textContent = "Dosya 50 MB sınırını aşıyor. Daha küçük bir PDF veya görsel seçin.";
+            fileStatus.classList.add("is-error");
+            return;
+        }
+        fileStatus.textContent = `Seçilen dosya: ${file.name} (${formatSize(file.size)})`;
+    });
+
+    form.addEventListener("submit", () => {
+        submitButton.disabled = true;
+        submitButton.textContent = "Analiz başlatılıyor…";
+        uploadStatus.textContent = "Dosya gönderiliyor. Analiz tamamlanana kadar bu sayfayı açık tutun.";
+        uploadStatus.classList.add("is-loading");
+        form.setAttribute("aria-busy", "true");
+    });
+
+    window.addEventListener("pageshow", () => {
+        submitButton.disabled = false;
+        submitButton.textContent = "🚀 Projeyi Analiz Et";
+        uploadStatus.textContent = "";
+        uploadStatus.classList.remove("is-loading");
+        form.removeAttribute("aria-busy");
+    });
+})();
+</script>
 
 </body>
 
@@ -1043,7 +1283,9 @@ def sonuc_sayfasi(
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<meta name="theme-color" content="#080c13">
 
 <title>Proje Analizi - İnşaat AI</title>
 
@@ -1070,6 +1312,10 @@ body {{
         Arial,
         Helvetica,
         sans-serif;
+
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
 
 }}
 
@@ -1198,13 +1444,17 @@ table {{
 
     border-collapse: collapse;
 
-    min-width: 650px;
+    min-width: 620px;
 
 }}
 
 .table-container {{
 
     overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
 
 }}
 
@@ -1228,6 +1478,7 @@ th {{
 td {{
 
     color: #d4dbe7;
+    overflow-wrap: anywhere;
 
 }}
 
@@ -1279,6 +1530,120 @@ td {{
 
 }}
 
+.report-nav {{
+    position: sticky;
+    top: max(8px, env(safe-area-inset-top));
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: -5px 0 18px;
+    padding: 10px;
+    border: 1px solid #334158;
+    border-radius: 16px;
+    background: rgba(13, 19, 29, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.26);
+    backdrop-filter: blur(12px);
+}}
+
+.report-nav a {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #394963;
+    border-radius: 999px;
+    background: #182231;
+    color: #e6eaf1;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}}
+
+.report-nav a:hover {{
+    background: #29264d;
+    border-color: #8b7bdb;
+}}
+
+.card[id] {{ scroll-margin-top: 82px; }}
+
+pre {{
+    max-width: 100%;
+    max-height: 55vh;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    -webkit-overflow-scrolling: touch;
+}}
+
+details > summary {{
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    cursor: pointer;
+}}
+
+:focus-visible {{
+    outline: 3px solid #c4b5fd;
+    outline-offset: 3px;
+}}
+
+@media (max-width: 640px) {{
+    .container {{
+        width: 100%;
+        padding: 12px 12px max(32px, env(safe-area-inset-bottom));
+    }}
+    .card {{ padding: 16px 14px; margin-bottom: 14px; border-radius: 19px; }}
+    h1 {{ font-size: clamp(25px, 7vw, 34px); line-height: 1.2; }}
+    h2 {{ font-size: clamp(20px, 5.5vw, 25px); line-height: 1.3; }}
+    h3 {{ line-height: 1.35; }}
+    p, li {{ overflow-wrap: anywhere; }}
+    .success {{ padding: 15px; border-radius: 14px; font-size: 17px; }}
+    .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }}
+    .stat {{ min-width: 0; padding: 14px 12px; border-radius: 13px; }}
+    .stat-number {{ font-size: 27px; overflow-wrap: anywhere; }}
+    .stat-label {{ font-size: 13px; line-height: 1.35; }}
+    .table-container {{ margin-right: -2px; border-radius: 10px; }}
+    table {{ min-width: 620px; font-size: 14px; }}
+    th, td {{ padding: 10px 9px; }}
+    .table-container::after {{
+        display: block;
+        padding: 5px 4px 8px;
+        color: #8997ab;
+        content: "Tablonun devamı için yana kaydırın →";
+        font-size: 12px;
+    }}
+    .report-nav {{
+        flex-wrap: nowrap;
+        gap: 7px;
+        margin: -2px 0 14px;
+        padding: 8px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }}
+    .report-nav a {{ min-height: 44px; padding: 8px 11px; font-size: 13px; }}
+    .button {{ min-height: 50px; padding: 14px 12px; border-radius: 14px; font-size: 17px; }}
+    .tags {{ gap: 7px; }}
+    .tag {{ padding: 8px 11px; line-height: 1.35; overflow-wrap: anywhere; }}
+    .warning {{ padding: 13px; line-height: 1.5; }}
+    details {{ overflow-wrap: anywhere; }}
+}}
+
+@media (max-width: 360px) {{
+    .container {{ padding-right: 8px; padding-left: 8px; }}
+    .card {{ padding: 13px 11px; }}
+    .grid {{ gap: 7px; }}
+    .stat {{ padding: 12px 9px; }}
+    .report-nav {{ margin-right: -3px; margin-left: -3px; }}
+}}
+
+@media (prefers-reduced-motion: reduce) {{
+    *, *::before, *::after {{ scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }}
+}}
+
 @page {{
     size: A4 landscape;
     margin: 12mm;
@@ -1292,7 +1657,9 @@ td {{
     .success, .warning {{ background: #fff !important; border-color: #888; }}
     .no-print {{ display: none !important; }}
     .table-container {{ overflow: visible; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 9pt; }}
+    .table-container::after {{ display: none; }}
+    .report-nav {{ display: none; }}
+    table {{ width: 100%; min-width: 0; border-collapse: collapse; font-size: 9pt; }}
     th, td {{ border: 1px solid #777; padding: 4px; overflow-wrap: anywhere; }}
     tr, h2, h3 {{ break-inside: avoid; page-break-inside: avoid; }}
     a {{ color: #111 !important; overflow-wrap: anywhere; }}
@@ -1308,7 +1675,7 @@ td {{
 <div class="container">
 
 
-<div class="card">
+<div class="card" id="rapor-baslangic">
 
     <div class="success">
         ✅ Proje başarıyla analiz edildi
@@ -1330,7 +1697,19 @@ td {{
 </div>
 
 
-<div class="card">
+<nav class="report-nav no-print" aria-label="Raporda hızlı gezinme">
+    <a href="#ozet">Özet</a>
+    <a href="#mekanlar">Mekânlar</a>
+    <a href="#malzemeler">Malzemeler</a>
+    <a href="#metraj">Metraj</a>
+    <a href="#miktarlar">Miktarlar</a>
+    <a href="#maliyet">Maliyet</a>
+    <a href="#paftalar">Paftalar</a>
+    <a href="#analiz-durumu">Durum</a>
+</nav>
+
+
+<div class="card" id="ozet">
 
     <h2>📊 Proje Özeti</h2>
 
@@ -1418,7 +1797,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="mekanlar">
 
     <h2>🏠 AI Tarafından Okunan Mekânlar</h2>
     <p>Çizim türü: <strong>{html.escape(str(gorsel_veri.get('cizim_turu', 'Belirlenemedi') if isinstance(gorsel_veri, dict) else 'Belirlenemedi'))}</strong></p>
@@ -1443,7 +1822,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="malzemeler">
 
     <h2>🧱 Tespit Edilen Malzemeler</h2>
 
@@ -1456,7 +1835,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="metraj">
 
     <h2>📐 Metrajlar</h2>
 
@@ -1495,7 +1874,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="miktarlar">
 
     <h2>🧮 Yaklaşık Malzeme Miktarları</h2>
     <p>Hesap durumu: <strong>{html.escape(str(miktar_analizi.get('durum', 'hesaplanamadi')))}</strong></p>
@@ -1527,7 +1906,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="maliyet">
 
     <h2>💰 Güncel Fiyatlarla Yaklaşık Malzeme Maliyeti</h2>
     <p>Fiyat araştırma durumu: <strong>{maliyet_durum}</strong></p>
@@ -1548,7 +1927,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="paftalar">
 
     <h2>📑 Sayfa Sınıflandırması</h2>
 
@@ -1580,7 +1959,7 @@ td {{
 </div>
 
 
-<div class="card">
+<div class="card" id="analiz-durumu">
 
     <h2>🤖 Analiz Durumu</h2>
 
@@ -1642,6 +2021,12 @@ async def health():
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
         "surum": APP_VERSION,
+        "openai_api_anahtari_tanimli": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+        "gorsel_analiz_modeli": os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
+        "fiyat_arastirma_modeli": os.getenv(
+            "OPENAI_PRICE_MODEL",
+            os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
+        ),
         "analiz_bilesenleri_uyumlu": (
             getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1) == 2
             and getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1) == 2
