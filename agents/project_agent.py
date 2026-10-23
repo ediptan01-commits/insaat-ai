@@ -143,7 +143,7 @@ class ProjectAgent:
 
         "cam": {
             "anahtarlar": ["cam"],
-            "birimler": ["m²", "m2", "adet"]
+            "birimler": ["m²", "m2"]
         },
 
         "ahşap": {
