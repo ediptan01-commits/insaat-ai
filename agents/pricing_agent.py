@@ -232,24 +232,31 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         match = next((p for p in matches if str(p.get("para_birimi", "")).upper() in {"TRY", "TL", "₺"}), None)
         if not match:
             durum = "fiyat_arama_hatasi" if quantity_key in hatali_kalem_anahtarlari else "karsilastirilabilir_fiyat_yok"
-            priced_items.append({**quantity, "fiyat_durumu": durum})
+            priced_items.append({
+                **quantity,
+                "fiyat_durumu": durum,
+                "fiyat_dogrulama_notu": "Fiyat ajanı bu malzeme adı ve birim için eşleşen fiyat satırı döndürmedi.",
+            })
             continue
 
-        sources = [
+        bildirilen_kaynaklar = [
             source
             for price_match in matches
             if str(price_match.get("para_birimi", "")).upper() in {"TRY", "TL", "₺"}
             for source in (price_match.get("kaynaklar", []) if isinstance(price_match.get("kaynaklar", []), list) else [])
             if isinstance(source, dict)
+        ]
+        sources = [
+            source for source in bildirilen_kaynaklar
             if _fiyat_kaynagi_url_anahtari(source.get("url")) in allowed_url_keys
+        ]
+        unit_sources = [
+            source for source in sources
+            if _birim_anahtari(source.get("fiyat_birimi")) == _birim_anahtari(quantity.get("birim"))
         ]
         quotes = []
         gorulen_kaynak_teklifleri = set()
-        for source in sources:
-            if not isinstance(source, dict):
-                continue
-            if _birim_anahtari(source.get("fiyat_birimi")) != _birim_anahtari(quantity.get("birim")):
-                continue
+        for source in unit_sources:
             try:
                 value = float(source.get("görülen_fiyat"))
             except (TypeError, ValueError):
@@ -275,7 +282,17 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
                 raise ValueError("Birimle uyumlu gerçek fiyat kaynağı doğrulanamadı.")
         except (KeyError, TypeError, ValueError):
             durum = "fiyat_arama_hatasi" if quantity_key in hatali_kalem_anahtarlari else "kaynak_veya_birim_fiyat_dogrulanamadi"
-            priced_items.append({**quantity, "fiyat_durumu": durum})
+            if not bildirilen_kaynaklar:
+                note = "Modelin fiyat yanıtında kaynak bağlantısı yok."
+            elif not sources:
+                note = "Fiyat kaynağı web aramasının döndürdüğü bağlantılarla eşleşmedi."
+            elif not unit_sources:
+                note = "Kaynakta verilen fiyat birimi metraj birimiyle eşleşmedi."
+            elif not quotes:
+                note = "Kaynakta doğrulanabilir pozitif sayısal fiyat bulunamadı."
+            else:
+                note = "Metraj miktarı doğrulanamadı."
+            priced_items.append({**quantity, "fiyat_durumu": durum, "fiyat_dogrulama_notu": note})
             continue
 
         low = min(value for value, _, _ in quotes)

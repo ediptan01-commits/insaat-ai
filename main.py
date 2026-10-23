@@ -93,7 +93,7 @@ def _analiz_bilesenlerini_dogrula() -> None:
 app = FastAPI(
     title="İnşaat AI",
     description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
-    version="0.6.23"
+    version="0.6.24"
 )
 
 
@@ -947,6 +947,7 @@ def sonuc_sayfasi(
                 kalem.get("fiyat_durumu"),
                 "Uyumlu, doğrulanabilir fiyat kaynağı bulunamadı",
             )
+            fiyat_mesaji = kalem.get("fiyat_dogrulama_notu", fiyat_mesaji)
             maliyet_satirlari.append(
                 "<tr><td>{}</td><td>{} {}</td><td>{}</td><td colspan=\"3\">{}</td></tr>".format(
                     kalem_adi,
@@ -1639,7 +1640,7 @@ async def health():
     return {
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
-        "surum": "0.6.23",
+        "surum": "0.6.24",
         "analiz_bilesenleri_uyumlu": (
             getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1) == 2
             and getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1) == 2
