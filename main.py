@@ -16,6 +16,7 @@ import re
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 MAKS_YUKLEME_BAYT = 50 * 1024 * 1024
+APP_VERSION = "0.6.30"
 
 
 async def _yuklemeyi_gecici_dosyaya_yaz(dosya: UploadFile, uzanti: str) -> str:
@@ -93,7 +94,7 @@ def _analiz_bilesenlerini_dogrula() -> None:
 app = FastAPI(
     title="İnşaat AI",
     description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
-    version="0.6.28"
+    version=APP_VERSION
 )
 
 
@@ -557,7 +558,7 @@ input[type="file"] {
 
 
     <div class="info">
-        İnşaat AI • Sürüm 0.6.10
+        İnşaat AI • Sürüm __APP_VERSION__
     </div>
 
 </div>
@@ -565,7 +566,7 @@ input[type="file"] {
 </body>
 
 </html>
-"""
+""".replace("__APP_VERSION__", APP_VERSION)
 
 
 # ============================================================
@@ -1640,7 +1641,7 @@ async def health():
     return {
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
-        "surum": "0.6.28",
+        "surum": APP_VERSION,
         "analiz_bilesenleri_uyumlu": (
             getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1) == 2
             and getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1) == 2
