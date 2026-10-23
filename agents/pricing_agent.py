@@ -287,7 +287,11 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
             elif not sources:
                 note = "Fiyat kaynağı web aramasının döndürdüğü bağlantılarla eşleşmedi."
             elif not unit_sources:
-                note = "Kaynakta verilen fiyat birimi metraj birimiyle eşleşmedi."
+                kaynak_birimleri = ", ".join(sorted({str(source.get("fiyat_birimi", "belirtilmemiş")) for source in sources}))[:100]
+                note = (
+                    f"Kaynak birimi ({kaynak_birimleri or 'belirtilmemiş'}) metraj birimi "
+                    f"({quantity.get('birim', 'belirtilmemiş')}) ile eşleşmedi."
+                )
             elif not quotes:
                 note = "Kaynakta doğrulanabilir pozitif sayısal fiyat bulunamadı."
             else:
