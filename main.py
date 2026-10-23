@@ -2,13 +2,14 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
-from servisler.image_service import gorsel_dosyasi_oku, gorsel_ai_analiz
+from servisler.image_service import gorsel_dosyasi_oku
 from agents.project_agent import ProjectAgent
 
 import tempfile
 import os
 import html
-import fitz
+import json
+import asyncio
 
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
@@ -22,102 +23,6 @@ def proje_dosyasi_oku(dosya_yolu: str, dosya_adi: str) -> dict:
         return pdf_oku(dosya_yolu)
     return gorsel_dosyasi_oku(dosya_yolu)
 
-def pdf_gorsel_ai_analiz(pdf_yolu: str, maksimum_sayfa: int = 3) -> dict:
-    """
-    PDF sayfalarını görsele çevirir ve görsel AI ile analiz eder.
-    İlk aşamada maliyet ve test amacıyla en fazla 3 sayfa analiz edilir.
-    """
-
-    sonuclar = []
-
-    try:
-        belge = fitz.open(pdf_yolu)
-
-        toplam_sayfa = len(belge)
-        analiz_sayisi = min(toplam_sayfa, maksimum_sayfa)
-
-        for indeks in range(analiz_sayisi):
-
-            sayfa = belge[indeks]
-
-            matris = fitz.Matrix(2, 2)
-            pixmap = sayfa.get_pixmap(
-                matrix=matris,
-                alpha=False
-            )
-
-            gecici_resim = tempfile.NamedTemporaryFile(
-                suffix=".png",
-                delete=False
-            )
-
-            resim_yolu = gecici_resim.name
-            gecici_resim.close()
-
-            pixmap.save(resim_yolu)
-
-            try:
-                analiz = gorsel_ai_analiz(resim_yolu)
-
-                sonuclar.append({
-                    "sayfa": indeks + 1,
-                    "analiz": analiz
-                })
-
-            finally:
-                if os.path.exists(resim_yolu):
-                    os.remove(resim_yolu)
-
-        belge.close()
-
-        return {
-            "durum": "basarili",
-            "toplam_pdf_sayfasi": toplam_sayfa,
-            "analiz_edilen_sayfa": analiz_sayisi,
-            "sayfalar": sonuclar
-        }
-
-    except Exception as e:
-
-        return {
-            "durum": "hata",
-            "mesaj": str(e)
-        }
-
-def dosya_gorsel_ai_analiz(dosya_yolu: str, dosya_adi: str) -> dict:
-    """
-    PDF ve doğrudan yüklenen JPG/PNG/WEBP dosyalarını
-    doğru görsel AI analiz yoluna gönderir.
-    """
-
-    uzanti = os.path.splitext(dosya_adi)[1].lower()
-
-    if uzanti in {".jpg", ".jpeg", ".png", ".webp"}:
-
-        sonuc = gorsel_ai_analiz(dosya_yolu)
-
-        return {
-            "durum": sonuc.get("durum", "bilinmiyor"),
-            "dosya_turu": "gorsel",
-            "analiz_edilen_sayfa": 1,
-            "toplam_sayfa": 1,
-            "sayfalar": [
-                {
-                    "sayfa": 1,
-                    "analiz": sonuc
-                }
-            ]
-        }
-
-    if uzanti == ".pdf":
-        sonuc = pdf_gorsel_ai_analiz(dosya_yolu)
-        sonuc["dosya_turu"] = "pdf"
-        return sonuc
-
-    return {
-        "durum": "hata",
-        "mesaj": "Desteklenmeyen dosya türü."
-    }
 
 # ============================================================
 # UYGULAMA
@@ -529,13 +434,20 @@ def sonuc_sayfasi(
         0
     )
 
-    gorsel_sayfa_sayisi = analiz.get(
-        "gorsel_analizi",
-        {}
-    ).get(
-        "girdi_sayfa_sayisi",
-        0
-    )
+    gorsel_analizi = analiz.get("gorsel_analizi", {})
+    gorsel_sayfa_sayisi = gorsel_analizi.get("sayfa_sayisi", 0)
+    gorsel_durum = html.escape(str(gorsel_analizi.get("durum", "bilinmiyor")))
+    if gorsel_analizi.get("durum") == "tamamlandi":
+        gorsel_ozet = f"Görsel AI {gorsel_sayfa_sayisi} sayfayı analiz etti."
+    elif gorsel_analizi.get("durum") == "api_anahtari_eksik":
+        gorsel_ozet = "Görsel analiz için sunucu API anahtarı bekleniyor."
+    else:
+        gorsel_ozet = "Görsel AI analizi tamamlanamadı; durum aşağıda gösteriliyor."
+    gorsel_bulgular = html.escape(json.dumps(
+        gorsel_analizi.get("bulgular", gorsel_analizi.get("ham_yanit", gorsel_analizi.get("mesaj", {}))),
+        ensure_ascii=False,
+        indent=2,
+    ))
 
     mimari = analiz.get(
         "sayfa_siniflari",
@@ -1125,35 +1037,14 @@ td {{
 
     <p>
         🖼️ {gorsel_sayfa_sayisi} sayfanın görseli,
-        görsel AI entegrasyonuna aktarılmak üzere hazırlandı.
+        {gorsel_ozet}
     </p>
 
-<div class="warning">
-
-    <h3>🤖 Görsel AI Analizi</h3>
-
-    <p>
-        Görsel AI analiz durumu:
-        <strong>
-            {analiz.get("gorsel_analizi", {}).get("durum", "bilinmiyor")}
-        </strong>
-    </p>
-
-    <p>
-        Analiz edilen sayfa:
-        <strong>
-            {analiz.get("gorsel_analizi", {}).get("analiz_edilen_sayfa", 0)}
-        </strong>
-    </p>
-
-    <p>
-        PDF toplam sayfa:
-        <strong>
-            {analiz.get("gorsel_analizi", {}).get("toplam_pdf_sayfasi", 0)}
-        </strong>
-    </p>
-
-  </div>
+    <div class="warning" style="white-space: pre-wrap; text-align: left;">
+        Görsel AI durumu: <strong>{gorsel_durum}</strong>
+        <h3>Görsel AI bulguları</h3>
+        <pre style="white-space: pre-wrap; overflow-wrap: anywhere;">{gorsel_bulgular}</pre>
+    </div>
 
 </div>
 
@@ -1272,14 +1163,7 @@ async def proje_yukle(
         # PROJE AJANI
         # ----------------------------------------------------
 
-        analiz = ProjectAgent().analyze(sonuc)
-
-        gorsel_analizi = dosya_gorsel_ai_analiz(
-        gecici_dosya,
-        dosya.filename
-        )
-
-        analiz["gorsel_analizi"] = gorsel_analizi
+        analiz = await asyncio.to_thread(ProjectAgent().analyze, sonuc)
 
 
         # ----------------------------------------------------
@@ -1405,13 +1289,7 @@ async def proje_analiz_et(
         # AI PROJE ANALİZİ
         # ----------------------------------------------------
 
-        analiz = ProjectAgent().analyze(
-            sonuc
-        )
-
-        gorsel_analizi = pdf_gorsel_ai_analiz(gecici_dosya)
-
-        analiz["gorsel_analizi"] = gorsel_analizi
+        analiz = await asyncio.to_thread(ProjectAgent().analyze, sonuc)
 
 
         # ----------------------------------------------------
