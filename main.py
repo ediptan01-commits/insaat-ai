@@ -93,7 +93,7 @@ def _analiz_bilesenlerini_dogrula() -> None:
 app = FastAPI(
     title="İnşaat AI",
     description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
-    version="0.6.21"
+    version="0.6.22"
 )
 
 
@@ -945,7 +945,7 @@ def sonuc_sayfasi(
             }
             fiyat_mesaji = fiyat_mesajlari.get(
                 kalem.get("fiyat_durumu"),
-                "İki uyumlu kaynaklı fiyat bulunamadı",
+                "Uyumlu, doğrulanabilir fiyat kaynağı bulunamadı",
             )
             maliyet_satirlari.append(
                 "<tr><td>{}</td><td>{} {}</td><td>{}</td><td colspan=\"3\">{}</td></tr>".format(
@@ -966,14 +966,20 @@ def sonuc_sayfasi(
             )
             for kaynak in kalem.get("kaynaklar", [])
         ) or "Kaynak bağlantısı yok"
+        birim_fiyat_min = f"{kalem['min_birim_fiyat_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        birim_fiyat_max = f"{kalem['max_birim_fiyat_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        if kalem.get("fiyat_kaynak_sayisi") == 1:
+            birim_fiyat_html = f"₺{birim_fiyat_min} (tek kaynak)"
+            kaynaklar += "<br><small>Tek bağımsız fiyat kaynağı; aralık değildir.</small>"
+        else:
+            birim_fiyat_html = f"₺{birim_fiyat_min}–₺{birim_fiyat_max}"
         maliyet_satirlari.append(
-            "<tr><td>{}</td><td>{} {}</td><td>{}</td><td>₺{}–₺{}</td><td>₺{}–₺{}</td><td>{}<br><small>KDV: {}</small></td></tr>".format(
+            "<tr><td>{}</td><td>{} {}</td><td>{}</td><td>{}</td><td>₺{}–₺{}</td><td>{}<br><small>KDV: {}</small></td></tr>".format(
                 kalem_adi,
                 html.escape(str(gosterilen_miktar)),
                 html.escape(str(kalem.get("birim", "-"))),
                 metraj_dayanagi_html(kalem),
-                f"{kalem['min_birim_fiyat_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                f"{kalem['max_birim_fiyat_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                birim_fiyat_html,
                 f"{kalem['min_tutar_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
                 f"{kalem['max_tutar_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
                 kaynaklar,
@@ -1633,7 +1639,7 @@ async def health():
     return {
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
-        "surum": "0.6.21",
+        "surum": "0.6.22",
         "analiz_bilesenleri_uyumlu": (
             getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1) == 2
             and getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1) == 2
