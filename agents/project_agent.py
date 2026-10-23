@@ -1,4 +1,5 @@
 import re
+from servisler.vision_service import gorsel_ai_analiz
 
 
 class ProjectAgent:
@@ -723,17 +724,7 @@ class ProjectAgent:
             "pencereler":
                 pencereler,
 
-            # Görüntüler bu aşamada yalnızca hazırlanır. Görsel model
-            # çağrısı eklenirken bu girdi arayüzü kullanılabilir.
-            "gorsel_analizi": {
-                "durum": (
-                    "girdi_hazir"
-                    if gorsel_girdi_sayfasi
-                    else "girdi_yok"
-                ),
-                "girdi_sayfa_sayisi": len(gorsel_girdi_sayfasi),
-                "arayuz": "gorsel_analiz_girdisi.sayfalar[].veri_url",
-            },
+            "gorsel_analizi": gorsel_ai_analiz(project_data),
 
             "durum":
                 "analiz_tamamlandi"
