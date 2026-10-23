@@ -42,6 +42,25 @@ def _fiyat_kapsami(kalemler):
     }
 
 
+def _birim_anahtari(deger):
+    """Fiyat yanıtındaki yaygın Türkçe ve para ekli birimleri karşılaştırır."""
+    birim = str(deger or "").casefold().strip()
+    birim = birim.replace("²", "2").replace("³", "3")
+    birim = re.sub(r"\s+", "", birim)
+    for para in ("try", "tl", "₺"):
+        birim = birim.replace(para, "")
+    birim = birim.strip("/:")
+    esdegerler = {
+        "m2": "m2", "metrekare": "m2", "metrekarebaşına": "m2",
+        "m3": "m3", "metreküp": "m3", "metreküpbaşına": "m3",
+        "l": "l", "lt": "l", "litre": "l", "liter": "l",
+        "kg": "kg", "kilogram": "kg", "ton": "ton", "tonne": "ton",
+        "m": "m", "metre": "m", "mt": "m",
+        "adet": "adet", "parça": "adet", "piece": "adet",
+    }
+    return esdegerler.get(birim, birim)
+
+
 def _urun_tanimi_eksik(kalem):
     ad = str(kalem.get("malzeme", "")).casefold()
     if any(ibare in ad for ibare in ("belirtilmemiş", "belirtilmemis", "belirsiz", "bilinmiyor")):
@@ -190,10 +209,10 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
             p for p in returned_prices
             if isinstance(p, dict)
             and str(p.get("malzeme", "")).casefold() == str(quantity.get("malzeme", "")).casefold()
-            and p.get("birim") == quantity.get("birim")
+            and _birim_anahtari(p.get("birim")) == _birim_anahtari(quantity.get("birim"))
         ]
-        match = next((p for p in matches if p.get("para_birimi") == "TRY"), None)
-        if not match or match.get("para_birimi") != "TRY" or match.get("birim") != quantity.get("birim"):
+        match = next((p for p in matches if str(p.get("para_birimi", "")).upper() in {"TRY", "TL", "₺"}), None)
+        if not match:
             durum = "fiyat_arama_hatasi" if quantity_key in hatali_kalem_anahtarlari else "karsilastirilabilir_fiyat_yok"
             priced_items.append({**quantity, "fiyat_durumu": durum})
             continue
@@ -201,7 +220,7 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         sources = [
             source
             for price_match in matches
-            if price_match.get("para_birimi") == "TRY"
+            if str(price_match.get("para_birimi", "")).upper() in {"TRY", "TL", "₺"}
             for source in (price_match.get("kaynaklar", []) if isinstance(price_match.get("kaynaklar", []), list) else [])
             if isinstance(source, dict)
             if source.get("url") in allowed_urls
@@ -211,7 +230,7 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         for source in sources:
             if not isinstance(source, dict):
                 continue
-            if source.get("fiyat_birimi") != quantity.get("birim"):
+            if _birim_anahtari(source.get("fiyat_birimi")) != _birim_anahtari(quantity.get("birim")):
                 continue
             try:
                 value = float(source.get("görülen_fiyat"))
