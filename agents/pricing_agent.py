@@ -111,7 +111,10 @@ def _fiyat_arastir(kalem_ozeti, bolge, api_key):
                         allowed_urls.add(url)
 
     response_data = _json_bulgularini_coz(_yanit_metni(result)) or {}
-    return response_data.get("fiyatlar", []), allowed_urls, None
+    fiyatlar = response_data.get("fiyatlar", [])
+    if not isinstance(fiyatlar, list):
+        fiyatlar = []
+    return [fiyat for fiyat in fiyatlar if isinstance(fiyat, dict)], allowed_urls, None
 
 
 def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
@@ -158,7 +161,8 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         quantity_key = (str(quantity.get("malzeme", "")).casefold(), str(quantity.get("birim", "")))
         matches = [
             p for p in returned_prices
-            if str(p.get("malzeme", "")).casefold() == str(quantity.get("malzeme", "")).casefold()
+            if isinstance(p, dict)
+            and str(p.get("malzeme", "")).casefold() == str(quantity.get("malzeme", "")).casefold()
             and p.get("birim") == quantity.get("birim")
         ]
         match = next((p for p in matches if p.get("para_birimi") == "TRY"), None)
@@ -171,7 +175,8 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
             source
             for price_match in matches
             if price_match.get("para_birimi") == "TRY"
-            for source in price_match.get("kaynaklar", [])
+            for source in (price_match.get("kaynaklar", []) if isinstance(price_match.get("kaynaklar", []), list) else [])
+            if isinstance(source, dict)
             if source.get("url") in allowed_urls
         ]
         quotes = []
@@ -193,7 +198,7 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         distinct_hosts = {host for _, host, _ in quotes}
         try:
             amount = float(quantity["miktar"])
-            if len(distinct_hosts) < 2 or amount < 0:
+            if not math.isfinite(amount) or amount <= 0 or len(distinct_hosts) < 2:
                 raise ValueError("İki bağımsız, birimi uyumlu fiyat kaynağı doğrulanamadı.")
         except (KeyError, TypeError, ValueError):
             durum = "fiyat_arama_hatasi" if quantity_key in hatali_kalem_anahtarlari else "kaynak_veya_birim_fiyat_dogrulanamadi"
