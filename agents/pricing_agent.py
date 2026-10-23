@@ -84,11 +84,8 @@ def _urun_tanimi_eksik(kalem):
         kapı_tipi_belirtili = any(
             tur in belge_notu for tur in ("panel", "melamin", "lake", "masif")
         )
-        kapı_olcusu_belirtili = bool(
-            re.search(r"\d{2,3}\s*[×x]\s*\d{2,3}", belge_notu)
-            and "cm" in belge_notu
-        )
-        if kapı_tipi_belirtili and kapı_olcusu_belirtili:
+        # Kapı adedi biliniyorsa ölçü olmadan da adet bazlı yaklaşık fiyat aranabilir.
+        if kapı_tipi_belirtili:
             return False
     if any(ibare in ad for ibare in ("belirtilmemiş", "belirtilmemis", "belirsiz", "bilinmiyor")):
         return True
