@@ -80,15 +80,17 @@ Metin metrajı sayı çözümleyicisi Türkçe binlik ve ondalık ayırıcılar�
 okumayı destekler (ör. `1.250,50 m³`).
 
 `agents/pricing_agent.py` Responses API web aramasıyla Türkiye'deki güncel
-tedarikçi fiyatlarını araştırır. Fiyatı toplama katmak için arama sonuçlarında
-bulunan URL'lerle eşleşen, istenen birimle uyumlu ve iki farklı alan adından
-fiyat gerekir. Yalnızca HTTP/HTTPS kaynakları kullanılır; aynı URL ve aynı
-fiyatın tekrarlanan alıntıları tekilleştirilir. Fiyat bulunamazsa tahmini değer üretilmez. Yükleme formundaki
+tedarikçi fiyatlarını araştırır. Fiyata yalnızca arama sonuçlarında bulunan
+URL'lerle eşleşen ve istenen birimle uyumlu gözlenen teklifler girer. İki farklı
+tedarikçi alan adı bulunursa aralık hesaplanır; tek doğrulanmış kaynak varsa
+gözlenen fiyat tek kaynak etiketiyle gösterilir. Yalnızca HTTP/HTTPS kaynakları
+kullanılır; aynı URL ve aynı fiyatın tekrarlanan alıntıları tekilleştirilir.
+Fiyat bulunamazsa tahmini değer üretilmez. Yükleme formundaki
 fiyat bölgesi (varsayılan Türkiye geneli) arama konumunu etkiler;
 `OPENAI_PRICE_MODEL` fiyat araştırma modelini belirler. Görsel ve fiyat ajanı hatalarında metin analizi sürer;
 durum raporlanır. Web araması ve model kullanımının OpenAI API ücretleri
 olabilir.
-Fiyat araştırması altı farklı malzeme/birimlik gruplar halinde yapılır; aynı
+Fiyat araştırması en fazla üç farklı malzeme/birimlik gruplar halinde yapılır; aynı
 kalem yinelenen metraj satırlarında tekrar aranmaz. Bir grup başarısız olsa
 bile diğer grupların sonuçları korunur. Fiyat tablosu, fiyatı doğrulanan malzeme satırı sayısını ve toplam satıra
 oranını gösterir. Araştırma başarısız olsa veya API anahtarı eksik olsa bile
