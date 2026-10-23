@@ -14,6 +14,36 @@ def _yanit_metni(response):
             parcalar.extend(c.get("text", "") for c in item.get("content", []) if c.get("type") == "output_text")
     return "\n".join(parcalar).strip()
 
+def _json_bulgularini_coz(metin):
+    """JSON nesnesini düz, code-fence ve JSON-string biçimlerinden çıkarır."""
+    aday = metin.strip()
+    for _ in range(3):
+        if aday.startswith("```"):
+            satirlar = aday.splitlines()
+            if satirlar and satirlar[0].startswith("```"):
+                satirlar = satirlar[1:]
+            if satirlar and satirlar[-1].strip() == "```":
+                satirlar = satirlar[:-1]
+            aday = "\n".join(satirlar).strip()
+        try:
+            cozulen = json.loads(aday)
+        except json.JSONDecodeError:
+            bas = aday.find("{")
+            son = aday.rfind("}")
+            if bas < 0 or son <= bas:
+                return None
+            try:
+                cozulen = json.loads(aday[bas:son + 1])
+            except json.JSONDecodeError:
+                return None
+        if isinstance(cozulen, dict):
+            return cozulen
+        if isinstance(cozulen, str):
+            aday = cozulen.strip()
+            continue
+        return None
+    return None
+
 def gorsel_ai_analiz(project_data):
     sayfalar = project_data.get("gorsel_analiz_girdisi", {}).get("sayfalar", [])
     if not sayfalar:
@@ -36,7 +66,12 @@ def gorsel_ai_analiz(project_data):
             {"type": "input_text", "text": f"Sayfa {sayfa.get('sayfa', '?')}:"},
             {"type": "input_image", "image_url": sayfa["veri_url"], "detail": "high"},
         ])
-    payload = {"model": os.getenv("OPENAI_VISION_MODEL", MODEL_VARSAYILAN), "input": [{"role": "user", "content": icerik}], "max_output_tokens": 2500}
+    payload = {
+        "model": os.getenv("OPENAI_VISION_MODEL", MODEL_VARSAYILAN),
+        "input": [{"role": "user", "content": icerik}],
+        "max_output_tokens": 2500,
+        "text": {"format": {"type": "json_object"}},
+    }
     request = urllib.request.Request(
         "https://api.openai.com/v1/responses", data=json.dumps(payload).encode("utf-8"),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, method="POST",
@@ -49,10 +84,7 @@ def gorsel_ai_analiz(project_data):
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return {"durum": "gorsel_ai_hatasi", "sayfa_sayisi": len(secilenler), "mesaj": "Görsel AI servisine ulaşılamadı veya geçersiz yanıt alındı."}
     metin = _yanit_metni(result)
-    try:
-        bulgular = json.loads(metin)
-        if not isinstance(bulgular, dict):
-            raise ValueError("JSON nesnesi bekleniyordu.")
-    except (json.JSONDecodeError, ValueError):
+    bulgular = _json_bulgularini_coz(metin)
+    if bulgular is None:
         return {"durum": "yanit_cozumlenemedi", "sayfa_sayisi": len(secilenler), "ham_yanit": metin[:12000]}
     return {"durum": "tamamlandi", "model": payload["model"], "sayfa_sayisi": len(secilenler), "atlanmis_sayfa_sayisi": max(0, len(sayfalar)-len(secilenler)), "bulgular": bulgular}
