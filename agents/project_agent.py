@@ -4,10 +4,9 @@ from servisler.quantity_service import miktarlari_hesapla
 from agents.pricing_agent import guncel_maliyet_hesapla
 
 SAYI_DESENI = r"(?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d+)?"
-ANALIZ_API_SOZLESME_SURUMU = 2
-
-
 class ProjectAgent:
+
+    ANALIZ_API_SOZLESME_SURUMU = 2
 
     # ============================================================
     # MALZEME TANIMLARI
