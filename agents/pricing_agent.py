@@ -95,7 +95,7 @@ def _fiyat_arastir(kalem_ozeti, bolge, api_key):
         "belirsiz de. Kaynak URL'leri web aramasında dönen kaynaklardan seç. Sadece aşağıdaki JSON biçiminde yanıtla: "
         "{\"fiyatlar\":[{\"malzeme\":string,\"birim\":string,\"min_birim_fiyat\":number|null,"
         "\"max_birim_fiyat\":number|null,\"para_birimi\":\"TRY\",\"kaynaklar\":[{\"ad\":string,"
-        "\"url\":string,\"görülen_fiyat\":number|null,\"fiyat_birimi\":string}],"
+        "\"url\":string,\"görülen_fiyat\":number|null}],"
         "\"kdv_durumu\":string,\"not\":string}]}\nMETRAJ: " + json.dumps(kalem_ozeti, ensure_ascii=False)
     )
     payload = {
@@ -250,13 +250,9 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
             source for source in bildirilen_kaynaklar
             if _fiyat_kaynagi_url_anahtari(source.get("url")) in allowed_url_keys
         ]
-        unit_sources = [
-            source for source in sources
-            if _birim_anahtari(source.get("fiyat_birimi")) == _birim_anahtari(quantity.get("birim"))
-        ]
         quotes = []
         gorulen_kaynak_teklifleri = set()
-        for source in unit_sources:
+        for source in sources:
             try:
                 value = float(source.get("görülen_fiyat"))
             except (TypeError, ValueError):
@@ -286,12 +282,6 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
                 note = "Modelin fiyat yanıtında kaynak bağlantısı yok."
             elif not sources:
                 note = "Fiyat kaynağı web aramasının döndürdüğü bağlantılarla eşleşmedi."
-            elif not unit_sources:
-                kaynak_birimleri = ", ".join(sorted({str(source.get("fiyat_birimi", "belirtilmemiş")) for source in sources}))[:100]
-                note = (
-                    f"Kaynak birimi ({kaynak_birimleri or 'belirtilmemiş'}) metraj birimi "
-                    f"({quantity.get('birim', 'belirtilmemiş')}) ile eşleşmedi."
-                )
             elif not quotes:
                 note = "Kaynakta doğrulanabilir pozitif sayısal fiyat bulunamadı."
             else:
