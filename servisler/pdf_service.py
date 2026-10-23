@@ -1,10 +1,18 @@
 import base64
+import os
 
 from pypdf import PdfReader
 
 
 GORSEL_DPI = 144
 GORSEL_MAKS_KENAR = 2000
+
+
+def _gorsel_sayfa_limiti():
+    try:
+        return max(1, int(os.getenv("MAX_VISION_PAGES", "40")))
+    except ValueError:
+        return 40
 
 
 def _sayfa_gorseli_uret(belge, fitz, sayfa_no: int) -> dict:
@@ -45,24 +53,41 @@ def pdf_oku(dosya_yolu: str) -> dict:
     reader = PdfReader(dosya_yolu)
     sayfalar = []
     gorsel_sayfalar = []
+    sayfa_sayisi = len(reader.pages)
+    gorsel_limiti = _gorsel_sayfa_limiti()
+    onceden_atlanan_sayfalar = list(range(gorsel_limiti + 1, sayfa_sayisi + 1))
 
     # PyMuPDF, Render üzerinde ayrıca Poppler kurulumu gerektirmeyen
     # paketlenmiş bir PDF renderer sağlar.
     try:
         import fitz
-
-        gorsel_belge = fitz.open(dosya_yolu)
-        gorsel_hata = None
-    except Exception as hata:
+    except ImportError as hata:
         fitz = None
         gorsel_belge = None
         gorsel_hata = str(hata)
+        gorsel_hata_kodu = "pdf_renderer_kurulu_degil"
+    else:
+        try:
+            gorsel_belge = fitz.open(dosya_yolu)
+            gorsel_hata = None
+            gorsel_hata_kodu = None
+        except Exception as hata:
+            gorsel_belge = None
+            gorsel_hata = str(hata)
+            gorsel_hata_kodu = "pdf_renderer_pdf_acamadi"
 
     for numara, sayfa in enumerate(reader.pages, start=1):
         metin = sayfa.extract_text() or ""
         sayfa_verisi = {"sayfa": numara, "metin": metin}
 
         try:
+            if numara > gorsel_limiti:
+                sayfa_verisi["gorsel"] = {
+                    "durum": "analiz_sayfa_siniri",
+                    "sinir": gorsel_limiti,
+                }
+                sayfalar.append(sayfa_verisi)
+                continue
             if gorsel_belge is None:
                 raise RuntimeError(gorsel_hata or "PDF renderer kullanılamıyor.")
             gorsel = _sayfa_gorseli_uret(gorsel_belge, fitz, numara)
@@ -78,6 +103,11 @@ def pdf_oku(dosya_yolu: str) -> dict:
             # analizinin başarısız olmasına neden olmamalıdır.
             sayfa_verisi["gorsel"] = {
                 "durum": "olusturulamadi",
+                "hata_kodu": (
+                    gorsel_hata_kodu
+                    if gorsel_belge is None
+                    else "pdf_sayfasi_gorsellestirilemedi"
+                ),
                 "hata": str(hata),
             }
 
@@ -87,7 +117,7 @@ def pdf_oku(dosya_yolu: str) -> dict:
         gorsel_belge.close()
 
     return {
-        "sayfa_sayisi": len(reader.pages),
+        "sayfa_sayisi": sayfa_sayisi,
         "sayfalar": sayfalar,
         "gorsel_analiz_girdisi": {
             "surum": "1.0",
@@ -96,5 +126,6 @@ def pdf_oku(dosya_yolu: str) -> dict:
                 "aktarılmak üzere hazırlandı."
             ),
             "sayfalar": gorsel_sayfalar,
+            "atlanmis_sayfalar": onceden_atlanan_sayfalar,
         },
     }
