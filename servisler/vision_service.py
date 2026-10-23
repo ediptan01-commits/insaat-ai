@@ -93,7 +93,8 @@ def gorsel_ai_analiz(project_data):
         "\"olcu_birimi\": \"m\"|\"cm\"|\"mm\"|\"belirsiz\", "
         "\"olcu_kaynagi\": \"cizimde_yazili\"|\"tahmini\"|\"belirsiz\"}], "
         "\"olculer\": [string], \"kapilar\": [string], \"pencereler\": [string], "
-        "\"malzemeler\": [string], \"acik_metrajlar\": [{\"sayfa\": number|null, "
+        "\"malzemeler\": [string], \"oda_zemin_kaplamalari\": [{\"sayfa\": number|null, \"oda_adi\": string, \"malzeme\": string, \"kaynak_metni\": string}], "
+        "\"acik_metrajlar\": [{\"sayfa\": number|null, "
         "\"malzeme\": string, \"miktar\": number, \"birim\": string, "
         "\"kaynak_metni\": string, \"guven\": \"yuksek\"|\"orta\"|\"dusuk\", "
         "\"turu\": \"cizimde_yazili\"|\"gorselde_sayim\"}], "
@@ -110,6 +111,9 @@ def gorsel_ai_analiz(project_data):
         "\"belirsizlikler\": [string]}. Okunmayan ölçüyü tahmin etme. "
         "Uzunluk/genişliği çizimdeki birimde yaz; birim görünmüyorsa belirsiz seç. "
         "Her fiziksel mekânı yalnızca bir kez yaz; aynı odayı farklı adlarla tekrarlama. "
+        "Yalnızca paftada açıkça belirtilen oda zemin kaplamalarını oda_zemin_kaplamalari listesine ekle; "
+        "oda_adi odalar listesindeki adla aynı olsun, malzeme ve kısa kaynak_metni çizimdeki not/mahal listesinden gelsin. "
+        "Ölçek, görünüş veya genel renk izleniminden zemin kaplaması çıkarma; oda için açık kaplama notu yoksa satır ekleme. "
         "Ölçü çizimde okunmuyorsa sayı uydurma, null yaz. "
         "Malzeme miktarını yalnızca çizimdeki açık metraj/poz satırından oku; kısa kaynak metnini aynen yaz ve turu cizimde_yazili yap. "
         "Açık miktar yok ama elemanları gerçekten sayabiliyorsan yalnız adet cinsinden gorselde_sayim olarak ekle; "
@@ -124,7 +128,7 @@ def gorsel_ai_analiz(project_data):
         "Çubuk sayısını plandaki çizgilerden sayma, büküm/ankraj boyu uydurma ve donatı kg miktarını tahmin etme; kaynağı ve çapı koru. "
         "Bu bir ön incelemedir; uygulama hesabı veya mühendislik onayı verme."
     )
-    birlesik = {"sayfalar": [], "odalar": [], "olculer": [], "kapilar": [], "pencereler": [], "malzemeler": [], "acik_metrajlar": [], "tasiyici_elemanlar": [], "donati_cubuklari": [], "aciklar": [], "belirsizlikler": []}
+    birlesik = {"sayfalar": [], "odalar": [], "olculer": [], "kapilar": [], "pencereler": [], "malzemeler": [], "oda_zemin_kaplamalari": [], "acik_metrajlar": [], "tasiyici_elemanlar": [], "donati_cubuklari": [], "aciklar": [], "belirsizlikler": []}
     basarili_partiler = 0
     hata_partileri = []
     for baslangic in range(0, len(secilenler), SAYFA_PARTI_BOYUTU):
@@ -172,7 +176,7 @@ def gorsel_ai_analiz(project_data):
             "islenemeyen_sayfalar": [s for hata in hata_partileri for s in hata["sayfalar"]],
             "mesaj": hata_partileri[0]["mesaj"] if hata_partileri else "Görsel girdisi yok.",
         }
-    for anahtar in ("sayfalar", "odalar", "olculer", "kapilar", "pencereler", "malzemeler", "acik_metrajlar", "tasiyici_elemanlar", "donati_cubuklari", "aciklar", "belirsizlikler"):
+    for anahtar in ("sayfalar", "odalar", "olculer", "kapilar", "pencereler", "malzemeler", "oda_zemin_kaplamalari", "acik_metrajlar", "tasiyici_elemanlar", "donati_cubuklari", "aciklar", "belirsizlikler"):
         tekil = []
         gorulen = set()
         for deger in birlesik[anahtar]:

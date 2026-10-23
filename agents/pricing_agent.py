@@ -3,6 +3,7 @@
 import json
 import math
 import os
+import re
 import urllib.error
 import urllib.request
 from datetime import date
@@ -39,6 +40,13 @@ def _fiyat_kapsami(kalemler):
         "toplam_kalem_sayisi": toplam,
         "fiyat_kapsam_yuzdesi": round(fiyatlanan * 100 / toplam, 1) if toplam else 0,
     }
+
+
+def _urun_tanimi_eksik(kalem):
+    ad = str(kalem.get("malzeme", "")).casefold()
+    if any(ibare in ad for ibare in ("belirtilmemiş", "belirtilmemis", "belirsiz", "bilinmiyor")):
+        return True
+    return "hazır beton" in ad and not re.search(r"\bc\s*\d{2}\b", ad)
 
 
 def _fiyat_arastir(kalem_ozeti, bolge, api_key):
@@ -125,7 +133,10 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        fiyatsiz_kalemler = [{**kalem, "fiyat_durumu": "api_anahtari_eksik"} for kalem in kalemler]
+        fiyatsiz_kalemler = [
+            {**kalem, "fiyat_durumu": "urun_tanimi_eksik" if _urun_tanimi_eksik(kalem) else "api_anahtari_eksik"}
+            for kalem in kalemler
+        ]
         return {"durum": "api_anahtari_eksik", "para_birimi": "TRY", "bolge": bolge, "kalemler": fiyatsiz_kalemler, **_fiyat_kapsami(fiyatsiz_kalemler), "mesaj": "Güncel fiyat araştırması için OPENAI_API_KEY gerekir."}
 
     batch_size = 6
@@ -136,6 +147,8 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
     arama_kalemleri = []
     gorulen_arama_anahtarlari = set()
     for kalem in kalemler:
+        if _urun_tanimi_eksik(kalem):
+            continue
         anahtar = (str(kalem.get("malzeme", "")).casefold(), str(kalem.get("birim", "")))
         if anahtar not in gorulen_arama_anahtarlari:
             gorulen_arama_anahtarlari.add(anahtar)
@@ -158,6 +171,9 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         allowed_urls.update(parti_url_listesi)
     priced_items = []
     for quantity in kalemler:
+        if _urun_tanimi_eksik(quantity):
+            priced_items.append({**quantity, "fiyat_durumu": "urun_tanimi_eksik"})
+            continue
         quantity_key = (str(quantity.get("malzeme", "")).casefold(), str(quantity.get("birim", "")))
         matches = [
             p for p in returned_prices
@@ -198,7 +214,16 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
         distinct_hosts = {host for _, host, _ in quotes}
         try:
             amount = float(quantity["miktar"])
-            if not math.isfinite(amount) or amount <= 0 or len(distinct_hosts) < 2:
+            amount_min = float(quantity.get("miktar_min", amount))
+            amount_max = float(quantity.get("miktar_max", amount))
+            if (
+                not math.isfinite(amount)
+                or not math.isfinite(amount_min)
+                or not math.isfinite(amount_max)
+                or amount_min <= 0
+                or amount_max < amount_min
+                or len(distinct_hosts) < 2
+            ):
                 raise ValueError("İki bağımsız, birimi uyumlu fiyat kaynağı doğrulanamadı.")
         except (KeyError, TypeError, ValueError):
             durum = "fiyat_arama_hatasi" if quantity_key in hatali_kalem_anahtarlari else "kaynak_veya_birim_fiyat_dogrulanamadi"
@@ -214,8 +239,10 @@ def guncel_maliyet_hesapla(miktar_analizi, fiyat_bolgesi=None):
             "fiyat_durumu": "kaynakli_web_fiyati",
             "min_birim_fiyat_try": round(low, 2),
             "max_birim_fiyat_try": round(high, 2),
-            "min_tutar_try": round(low * amount, 2),
-            "max_tutar_try": round(high * amount, 2),
+            "min_tutar_try": round(low * amount_min, 2),
+            "max_tutar_try": round(high * amount_max, 2),
+            "fiyatlanan_miktar_min": amount_min,
+            "fiyatlanan_miktar_max": amount_max,
             "kdv_durumu": match.get("kdv_durumu", "belirtilmemiş"),
             "fiyat_notu": match.get("not", ""),
             "kaynaklar": sources,

@@ -4,6 +4,7 @@ from servisler.quantity_service import miktarlari_hesapla
 from agents.pricing_agent import guncel_maliyet_hesapla
 
 SAYI_DESENI = r"(?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d+)?"
+ANALIZ_API_SOZLESME_SURUMU = 2
 
 
 class ProjectAgent:
@@ -542,6 +543,7 @@ class ProjectAgent:
         fire_yuzdesi=10,
         tavan_yuksekligi=2.8,
         olcu_birimi_varsayimi="belirsiz",
+        kuru_alan_kaplamasi="laminat",
     ):
 
         sayfalar = project_data.get(
@@ -744,6 +746,7 @@ class ProjectAgent:
             fire_yuzdesi=fire_yuzdesi,
             tavan_yuksekligi=tavan_yuksekligi,
             olcu_birimi_varsayimi=olcu_birimi_varsayimi,
+            kuru_alan_kaplamasi=kuru_alan_kaplamasi,
         )
         maliyet_analizi = guncel_maliyet_hesapla(malzeme_miktarlari, fiyat_bolgesi)
 

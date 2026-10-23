@@ -3,6 +3,8 @@
 import math
 import re
 
+METRAJ_API_SOZLESME_SURUMU = 2
+
 
 ODA_ALAN_TERIMLERI = {
     "seramik": ("banyo", "wc", "tuvalet", "mutfak", "balkon", "teras"),
@@ -107,6 +109,61 @@ def miktarlari_hesapla(
     """
     bulgular = gorsel_analizi.get("bulgular") or {}
     odalar = bulgular.get("odalar") or []
+    zemin_kaplama_verisi = bulgular.get("oda_zemin_kaplamalari", [])
+    zemin_kaplama_notlari = [
+        kayit for kayit in zemin_kaplama_verisi
+        if isinstance(kayit, dict)
+    ] if isinstance(zemin_kaplama_verisi, list) else []
+
+    def oda_adi_normalize_et(deger):
+        return re.sub(r"\W+", " ", str(deger or "").casefold()).strip()
+
+    def zemin_turunu_coz(malzeme):
+        metin = str(malzeme or "").casefold()
+        seramik = any(k in metin for k in ("seramik", "fayans", "porselen karo"))
+        laminat = "laminat" in metin
+        if seramik == laminat:
+            return None
+        return "seramik" if seramik else "laminat"
+
+    def yazili_kaplama_turunu_coz(malzeme):
+        metin = str(malzeme or "").casefold()
+        if "seramik" in metin or "fayans" in metin or "porselen karo" in metin:
+            return "seramik"
+        if "laminat" in metin or "parke" in metin:
+            return "laminat"
+        return None
+
+    yazili_kaplama_tum_odalar = set()
+    yazili_kaplama_odalar = {"seramik": set(), "laminat": set()}
+    yazili_kaplama_satirlari = [
+        item for item in (metin_metrajlari or []) if isinstance(item, dict)
+    ]
+    acik_metrajlar = bulgular.get("acik_metrajlar", [])
+    if isinstance(acik_metrajlar, list):
+        yazili_kaplama_satirlari.extend(
+            item for item in acik_metrajlar
+            if isinstance(item, dict) and item.get("turu") == "cizimde_yazili"
+        )
+    for item in yazili_kaplama_satirlari:
+        if _birimi_normalize_et(item.get("birim")) != "m²":
+            continue
+        kaplama_turu = yazili_kaplama_turunu_coz(item.get("malzeme"))
+        if not kaplama_turu:
+            continue
+        kaynak_satiri = oda_adi_normalize_et(item.get("kaynak") or item.get("kaynak_metni"))
+        eslesen_oda_adlari = {
+            oda_adi_normalize_et(oda.get("ad"))
+            for oda in odalar if isinstance(oda, dict) and oda_adi_normalize_et(oda.get("ad"))
+            and f" {oda_adi_normalize_et(oda.get('ad'))} " in f" {kaynak_satiri} "
+        }
+        if eslesen_oda_adlari:
+            yazili_kaplama_odalar[kaplama_turu].update(eslesen_oda_adlari)
+        else:
+            # An unscoped written quantity may already cover the plan's whole
+            # flooring scope; do not add room-derived area on top of it.
+            yazili_kaplama_tum_odalar.add(kaplama_turu)
+
     hesaplanabilenler = []
     atlanan_odalar = []
     seramik_net = 0.0
@@ -153,14 +210,41 @@ def miktarlari_hesapla(
             continue
 
         ad = str(oda.get("ad") or "Oda")
+        oda_sayfasi = oda.get("sayfa")
+        oda_kimligi = oda_adi_normalize_et(ad)
+        acik_kaplama_notlari = [
+            notu for notu in zemin_kaplama_notlari
+            if oda_adi_normalize_et(notu.get("oda_adi")) == oda_kimligi
+            and (notu.get("sayfa") is None or oda_sayfasi is None or notu.get("sayfa") == oda_sayfasi)
+            and str(notu.get("kaynak_metni") or "").strip()
+        ]
+        kaplama_turleri = {
+            zemin_turunu_coz(notu.get("malzeme"))
+            for notu in acik_kaplama_notlari
+        }
+        if acik_kaplama_notlari:
+            if len(kaplama_turleri) != 1 or None in kaplama_turleri:
+                atlanan_odalar.append(ad + " (paftadaki zemin kaplaması net sınıflandırılamadı; kaplama maliyetinden çıkarıldı)")
+                secilen_kaplama = None
+                kaplama_kaynagi = "paftadaki açık kaplama notu; doğrulama gerekli"
+            else:
+                secilen_kaplama = next(iter(kaplama_turleri))
+                kaplama_kaynagi = "paftada açıkça yazılı: " + str(acik_kaplama_notlari[0].get("kaynak_metni"))
+        else:
+            oda_islak = any(terim in ad.casefold() for terim in ODA_ALAN_TERIMLERI["seramik"])
+            secilen_kaplama = "seramik" if oda_islak or kuru_alan_kaplamasi == "seramik" else "laminat"
+            kaplama_kaynagi = "oda adına ve kullanıcı seçimine dayalı kaplama varsayımı"
+
         kayit = {
             "ad": ad,
             "uzunluk_m": round(uzunluk, 2),
             "genislik_m": round(genislik, 2),
             "alan_m2": round(alan, 2),
-            "sayfa": oda.get("sayfa"),
+            "sayfa": oda_sayfasi,
             "olcu_kaynagi": "çizimde yazılı ölçü (görsel AI okuması)",
             "olcu_metni": str(oda.get("olcu") or ""),
+            "zemin_kaplama": secilen_kaplama or "belirsiz",
+            "zemin_kaplama_kaynagi": kaplama_kaynagi,
         }
         if kaynak:
             kayit["olcu_notu"] = kaynak
@@ -169,13 +253,16 @@ def miktarlari_hesapla(
             kayit["olcu_notu"] = f"Birim varsayımı: {olcu_birimi_varsayimi}"
         hesaplanabilenler.append(kayit)
 
-        if (
-            any(terim in ad.casefold() for terim in ODA_ALAN_TERIMLERI["seramik"])
-            or kuru_alan_kaplamasi == "seramik"
-        ):
+        if secilen_kaplama == "seramik":
+            if secilen_kaplama in yazili_kaplama_tum_odalar or oda_kimligi in yazili_kaplama_odalar[secilen_kaplama]:
+                atlanan_odalar.append(ad + " (seramik metrajı belgede ayrıca yazılı; oda alanı tekrar eklenmedi)")
+                continue
             seramik_net += alan
             seramik_odalar.append(kayit)
-        else:
+        elif secilen_kaplama == "laminat":
+            if secilen_kaplama in yazili_kaplama_tum_odalar or oda_kimligi in yazili_kaplama_odalar[secilen_kaplama]:
+                atlanan_odalar.append(ad + " (parke/laminat metrajı belgede ayrıca yazılı; oda alanı tekrar eklenmedi)")
+                continue
             parke_net += alan
             parke_odalar.append(kayit)
 
@@ -187,6 +274,10 @@ def miktarlari_hesapla(
                 "alan_m2": oda["alan_m2"],
                 "olcu_metni": oda.get("olcu_metni", ""),
                 "olcu_notu": oda.get("olcu_notu", ""),
+                "zemin_kaplama": oda.get("zemin_kaplama", "belirsiz"),
+                "zemin_kaplama_kaynagi": oda.get("zemin_kaplama_kaynagi", ""),
+                "zemin_kaplama": oda.get("zemin_kaplama", "belirsiz"),
+                "zemin_kaplama_kaynagi": oda.get("zemin_kaplama_kaynagi", ""),
             }
             for oda in odalar
         ]
@@ -225,11 +316,13 @@ def miktarlari_hesapla(
             2 * (oda["uzunluk_m"] + oda["genislik_m"]) * tavan_yuksekligi
             for oda in hesaplanabilenler
         )
-        boya_litre = boyanabilir_duvar * 2 / 11 * 1.10
-        astar_litre = boyanabilir_duvar / 10 * 1.10
+        boya_litre_min = boyanabilir_duvar * 2 / 13 * 1.10
+        boya_litre_max = boyanabilir_duvar * 2 / 11 * 1.10
+        astar_litre_min = boyanabilir_duvar / 12 * 1.10
+        astar_litre_max = boyanabilir_duvar / 10 * 1.10
         kalemler.extend([
-            {"malzeme": "İç cephe boya (2 kat)", "miktar": round(boya_litre, 1), "birim": "L", "hesaplanan_duvar_alani_m2": round(boyanabilir_duvar, 2), "tahmin": True, "kaynak": "ölçüsü doğrulanmış odaların çevresi × tavan yüksekliği; açıklık düşümü yok", "kaynak_odalar": oda_kaynaklari(hesaplanabilenler), "kaynak_sayfalari": kaynak_sayfalari(hesaplanabilenler)},
-            {"malzeme": "İç cephe astarı", "miktar": round(astar_litre, 1), "birim": "L", "hesaplanan_duvar_alani_m2": round(boyanabilir_duvar, 2), "tahmin": True, "kaynak": "ölçüsü doğrulanmış odaların çevresi × tavan yüksekliği; açıklık düşümü yok", "kaynak_odalar": oda_kaynaklari(hesaplanabilenler), "kaynak_sayfalari": kaynak_sayfalari(hesaplanabilenler)},
+            {"malzeme": "İç cephe boya (2 kat)", "miktar": round((boya_litre_min + boya_litre_max) / 2, 1), "miktar_min": round(boya_litre_min, 1), "miktar_max": round(boya_litre_max, 1), "birim": "L", "tuketim_araligi_m2_l_kat": "11–13", "teknik_kaynak_url": "https://polisan.com.tr/primera-plast_p14337", "hesaplanan_duvar_alani_m2": round(boyanabilir_duvar, 2), "tahmin": True, "kaynak": "ölçüsü doğrulanmış oda çevreleri × tavan yüksekliği; 2 kat boya, üretici kapsama aralığı ve %10 uygulama payı; açıklık düşümü yok", "kaynak_odalar": oda_kaynaklari(hesaplanabilenler), "kaynak_sayfalari": kaynak_sayfalari(hesaplanabilenler)},
+            {"malzeme": "İç cephe dolgulu astarı", "miktar": round((astar_litre_min + astar_litre_max) / 2, 1), "miktar_min": round(astar_litre_min, 1), "miktar_max": round(astar_litre_max, 1), "birim": "L", "tuketim_araligi_m2_l_kat": "10–12", "teknik_kaynak_url": "https://polisan.com.tr/dolgulu-astar_p123", "hesaplanan_duvar_alani_m2": round(boyanabilir_duvar, 2), "tahmin": True, "kaynak": "ölçüsü doğrulanmış oda çevreleri × tavan yüksekliği; üretici tek kat kapsama aralığı ve %10 uygulama payı; açıklık düşümü yok", "kaynak_odalar": oda_kaynaklari(hesaplanabilenler), "kaynak_sayfalari": kaynak_sayfalari(hesaplanabilenler)},
         ])
 
     # Metinde açıkça yazılı miktarlar, modelin tahminlerinden ayrı ve kaynak
@@ -517,14 +610,14 @@ def miktarlari_hesapla(
                 else "Çizimde birimi olmayan oda ölçüleri için varsayım seçilmedi; bu odalar metraj ve maliyete alınmadı."
             ),
             (
-                "Banyo, WC, mutfak ve balkon/teras seramik; diğer odalar laminat parke varsayılmıştır."
+                "Odaya özel, çizimde açıkça yazılmış seramik/laminat kaplama notu varsa kullanılır; diğer odalar için seçime göre banyo, WC, mutfak ve balkon/teras seramik, kuru odalar laminat kabul edilmiştir."
                 if kuru_alan_kaplamasi == "laminat"
-                else "Bütün ölçüsü doğrulanmış odalarda seramik zemin kaplaması varsayılmıştır."
+                else "Odaya özel, çizimde açıkça yazılmış seramik/laminat kaplama notu varsa kullanılır; diğer bütün ölçüsü doğrulanmış odalarda seramik zemin kaplaması varsayılmıştır."
             ),
             "Seramik yapıştırıcısı, seramik net alanı için üretici teknik föyündeki 3–5 kg/m² tüketim aralığıyla hesaplanır. Ürün, tarak dişi, yüzey düzgünlüğü ve uygulamaya göre değişebilir. Derz dolgusu; karo ölçüsü ve derz genişliği bilinmediğinden hesaplanmamıştır.",
             f"Kaplama miktarına kullanıcı ayarı olan %{fire_yuzdesi:g} kesim/fire payı eklenmiştir.",
             f"Duvar boya/astar alanı, ölçüsü doğrulanmış her oda için 2 × (uzunluk + genişlik) × {tavan_yuksekligi:.2f} m tavan yüksekliğiyle hesaplanmıştır. Kapı ve pencere açıklıkları düşülmemiştir; ortak duvarlar oda yüzü başına sayılır.",
-            "Boya 2 kat ve 11 m²/L; astar 10 m²/L yayılım ve her ikisine %10 uygulama payı varsayılmıştır. Ürün teknik föyü ve yüzey durumuna göre değişir.",
+            "Boya iki kat için Polisan Primera Plast ürün bilgisindeki 11–13 m²/L/kat, astar tek kat için Polisan Dolgulu Astar bilgisindeki 10–12 m²/L kapsama aralıkları referans alınmıştır; her iki miktara %10 uygulama payı eklenmiştir. Bunlar seçilmiş ürünlerin referans tüketimidir; yüzey emiciliği, pürüzlülük ve uygulama şekli gerçek miktarı değiştirir.",
             "Donatı teorik ağırlığı nominal dairesel kesit alanı × 0,00785 kg/mm²/m çelik yoğunluğuyla hesaplanır; kanca, büküm, bindirme, tolerans ve saha kaybı eklenmez.",
         ],
         "kapsam_disi": [

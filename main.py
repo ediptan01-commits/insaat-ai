@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
 from servisler.image_service import gorsel_dosyasi_oku
+from servisler import quantity_service
 from agents.project_agent import ProjectAgent
 
 import tempfile
@@ -10,6 +11,7 @@ import os
 import html
 import json
 import asyncio
+import re
 
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
@@ -73,6 +75,17 @@ def _kuru_alan_kaplamasini_duzenle(deger: str) -> str:
     return secim if secim in {"laminat", "seramik"} else "laminat"
 
 
+def _analiz_bilesenlerini_dogrula() -> None:
+    beklenen = 2
+    ajan_surumu = getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1)
+    metraj_surumu = getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1)
+    if ajan_surumu != beklenen or metraj_surumu != beklenen:
+        raise RuntimeError(
+            "Sunucudaki uygulama dosyaları farklı sürümlerde. ZIP içindeki main.py, "
+            "agents/project_agent.py ve servisler/quantity_service.py dosyalarını birlikte güncelleyip yeniden dağıtın."
+        )
+
+
 # ============================================================
 # UYGULAMA
 # ============================================================
@@ -80,7 +93,7 @@ def _kuru_alan_kaplamasini_duzenle(deger: str) -> str:
 app = FastAPI(
     title="İnşaat AI",
     description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
-    version="0.6.13"
+    version="0.6.17"
 )
 
 
@@ -602,22 +615,33 @@ def sonuc_sayfasi(
     ))
     gorsel_veri = gorsel_analizi.get("bulgular", {})
     gorsel_oda_satirlari = []
+    zemin_notlari = gorsel_veri.get("oda_zemin_kaplamalari", []) if isinstance(gorsel_veri, dict) else []
+    if not isinstance(zemin_notlari, list):
+        zemin_notlari = []
+    oda_norm = lambda deger: re.sub(r"\W+", " ", str(deger or "").casefold()).strip()
     for oda in gorsel_veri.get("odalar", []) if isinstance(gorsel_veri, dict) else []:
         if not isinstance(oda, dict):
             continue
         olcu_metni = oda.get("olcu") or "{} × {} {}".format(
             oda.get("uzunluk", "?"), oda.get("genislik", "?"), oda.get("olcu_birimi", "birim belirsiz")
         )
+        eslesen_zeminler = [
+            f"{zemin.get('malzeme', '')} — {zemin.get('kaynak_metni', '')}"
+            for zemin in zemin_notlari if isinstance(zemin, dict)
+            and oda_norm(zemin.get("oda_adi")) == oda_norm(oda.get("ad"))
+            and (zemin.get("sayfa") is None or oda.get("sayfa") is None or zemin.get("sayfa") == oda.get("sayfa"))
+        ]
         gorsel_oda_satirlari.append(
-            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
                 html.escape(str(oda.get("ad", "Oda"))),
                 html.escape(str(olcu_metni)),
                 html.escape(str(oda.get("sayfa") or "Belirtilmedi")),
                 html.escape(str(oda.get("olcu_kaynagi", "Görsel AI okuması"))),
+                html.escape(" / ".join(eslesen_zeminler) if eslesen_zeminler else "Belirtilmedi"),
             )
         )
     gorsel_odalar_html = "".join(gorsel_oda_satirlari) or (
-        '<tr><td colspan="4">Görsel analizinden oda ölçüsü çıkarılamadı.</td></tr>'
+        '<tr><td colspan="5">Görsel analizinden oda ölçüsü çıkarılamadı.</td></tr>'
     )
     def gorsel_liste_html(alan):
         degerler = gorsel_veri.get(alan, []) if isinstance(gorsel_veri, dict) else []
@@ -833,6 +857,10 @@ def sonuc_sayfasi(
                     parcalar.append(f"ölçü: {oda['olcu_metni']}")
                 if oda.get("olcu_notu"):
                     parcalar.append(str(oda["olcu_notu"]))
+                if oda.get("zemin_kaplama"):
+                    parcalar.append(f"Zemin: {oda['zemin_kaplama']}")
+                if oda.get("zemin_kaplama_kaynagi"):
+                    parcalar.append(str(oda["zemin_kaplama_kaynagi"]))
                 satirlar.append("<br>".join(html.escape(parca) for parca in parcalar))
             teknik_url = kalem.get("teknik_kaynagi_url")
             if teknik_url:
@@ -868,16 +896,17 @@ def sonuc_sayfasi(
     for oda in miktar_analizi.get("oda_alanlari", []):
         olcu_notu = oda.get("olcu_notu") or oda.get("olcu_kaynagi") or "Ölçü bilgisi"
         oda_alan_satirlari.append(
-            "<tr><td>{}</td><td>{} × {} m</td><td>{} m²</td><td>{}</td><td>{}</td></tr>".format(
+            "<tr><td>{}</td><td>{} × {} m</td><td>{} m²</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
                 html.escape(str(oda.get("ad", "Oda"))),
                 html.escape(str(oda.get("uzunluk_m", "-"))),
                 html.escape(str(oda.get("genislik_m", "-"))),
                 html.escape(str(oda.get("alan_m2", "-"))),
                 html.escape(str(oda.get("sayfa") or "Belirtilmedi")),
+                html.escape(str(oda.get("zemin_kaplama", "belirsiz"))),
                 html.escape(str(olcu_notu)),
             )
         )
-    oda_alan_html = "".join(oda_alan_satirlari) or '<tr><td colspan="5">Alan hesabına uygun oda ölçüsü yok.</td></tr>'
+    oda_alan_html = "".join(oda_alan_satirlari) or '<tr><td colspan="6">Alan hesabına uygun oda ölçüsü yok.</td></tr>'
     varsayim_html = "".join(
         f"<li>{html.escape(str(madde))}</li>"
         for madde in miktar_analizi.get("varsayimlar", [])
@@ -912,6 +941,7 @@ def sonuc_sayfasi(
                 "api_anahtari_eksik": "Fiyat araştırması için OPENAI_API_KEY tanımlı değil",
                 "fiyat_arama_hatasi": "Fiyat araştırma servisine ulaşılamadı",
                 "kaynak_veya_birim_fiyat_dogrulanamadi": "Kaynak veya birim fiyat doğrulanamadı",
+                "urun_tanimi_eksik": "Ürün tipi veya teknik özellikleri eksik; yanıltıcı fiyat eklenmedi",
             }
             fiyat_mesaji = fiyat_mesajlari.get(
                 kalem.get("fiyat_durumu"),
@@ -1380,7 +1410,7 @@ td {{
     <p>Çizim türü: <strong>{html.escape(str(gorsel_veri.get('cizim_turu', 'Belirlenemedi') if isinstance(gorsel_veri, dict) else 'Belirlenemedi'))}</strong></p>
     <div class="table-container">
         <table>
-            <thead><tr><th>Mekân</th><th>Çizimde okunan ölçü</th><th>Sayfa</th><th>Ölçü kaynağı</th></tr></thead>
+            <thead><tr><th>Mekân</th><th>Çizimde okunan ölçü</th><th>Sayfa</th><th>Ölçü kaynağı</th><th>Paftadaki kaplama notu</th></tr></thead>
             <tbody>{gorsel_odalar_html}</tbody>
         </table>
     </div>
@@ -1464,12 +1494,12 @@ td {{
     <h3>Oda alanı hesabı</h3>
     <div class="table-container">
         <table>
-            <thead><tr><th>Mekân</th><th>Boyut</th><th>Alan</th><th>Sayfa</th><th>Ölçü notu</th></tr></thead>
+            <thead><tr><th>Mekân</th><th>Boyut</th><th>Alan</th><th>Sayfa</th><th>Zemin kaplama</th><th>Ölçü notu</th></tr></thead>
             <tbody>{oda_alan_html}</tbody>
         </table>
     </div>
     <h3>Metraja alınmayan odalar</h3>
-    <p>Ölçüsü veya birimi çizimde doğrulanamadığı için bu odalar miktar ve maliyet toplamına dahil edilmedi.</p>
+    <p>Ölçüsü, birimi veya kaplaması doğrulanmayan ve yazılı metrajla çakışabilecek oda alanları ilgili varsayımsal toplamdan çıkarıldı.</p>
     <ul>{atlanan_oda_html}</ul>
     <h3>Yapısal hacim doğrulama notları</h3>
     <ul>{atlanan_yapisal_html}</ul>
@@ -1596,7 +1626,11 @@ async def health():
     return {
         "durum": "çalışıyor",
         "sistem": "İnşaat AI",
-        "surum": "0.6.13"
+        "surum": "0.6.17",
+        "analiz_bilesenleri_uyumlu": (
+            getattr(ProjectAgent, "ANALIZ_API_SOZLESME_SURUMU", 1) == 2
+            and getattr(quantity_service, "METRAJ_API_SOZLESME_SURUMU", 1) == 2
+        )
     }
 
 
@@ -1643,11 +1677,12 @@ async def proje_yukle(
             detail="PDF, JPG/JPEG, PNG veya WEBP dosyaları yüklenebilir."
         )
 
-
     gecici_dosya = None
 
 
     try:
+
+        _analiz_bilesenlerini_dogrula()
 
         gecici_dosya = await _yuklemeyi_gecici_dosyaya_yaz(dosya, uzanti)
 
@@ -1775,11 +1810,12 @@ async def proje_analiz_et(
             status_code=400
         )
 
-
     gecici_dosya = None
 
 
     try:
+
+        _analiz_bilesenlerini_dogrula()
 
         gecici_dosya = await _yuklemeyi_gecici_dosyaya_yaz(dosya, uzanti)
 
