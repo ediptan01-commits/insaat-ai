@@ -16,7 +16,7 @@ import re
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 MAKS_YUKLEME_BAYT = 50 * 1024 * 1024
-APP_VERSION = "0.6.32"
+APP_VERSION = "0.6.33"
 
 
 async def _yuklemeyi_gecici_dosyaya_yaz(dosya: UploadFile, uzanti: str) -> str:
@@ -544,6 +544,156 @@ input[type="file"]::file-selector-button {
     *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
+/* Kompakt arayüz */
+:root {
+    color-scheme: dark;
+    --page: #080d16;
+    --panel: rgba(16, 25, 40, 0.92);
+    --panel-raised: #131f31;
+    --line: #263650;
+    --muted: #9aa9be;
+    --text: #f4f7fb;
+    --violet: #a78bfa;
+}
+
+body {
+    color: var(--text);
+    background:
+        radial-gradient(ellipse at 14% -8%, rgba(91, 54, 174, 0.28), transparent 34rem),
+        radial-gradient(ellipse at 100% 28%, rgba(34, 91, 132, 0.14), transparent 30rem),
+        var(--page);
+}
+
+.container {
+    width: min(100% - 40px, 920px);
+    padding: 28px 0 40px;
+}
+
+.hero { padding: 0 2px 22px; }
+.brand-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
+.brand-mark { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #584594; border-radius: 13px; background: linear-gradient(145deg, #31205c, #16233b); font-size: 21px; }
+.brand-name { font-size: 17px; font-weight: 700; letter-spacing: -.03em; }
+.brand-name strong { color: #b7a4ff; }
+.status-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #26374b; border-radius: 999px; background: rgba(17, 29, 44, .72); color: #bac7d8; font-size: 12px; white-space: nowrap; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #45d6a2; box-shadow: 0 0 12px rgba(69, 214, 162, .6); }
+.hero-copy { max-width: 680px; margin: 30px 0 18px; text-align: left; }
+.eyebrow { margin: 0 0 9px; color: #b7a4ff; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
+.hero h1 { margin: 0; color: var(--text); font-size: clamp(36px, 5vw, 51px); font-weight: 750; letter-spacing: -.055em; line-height: 1.08; -webkit-text-fill-color: currentColor; }
+.hero h1 span { color: #b9a7ff; background: linear-gradient(100deg, #c4b5fd, #8ec5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero .subtitle { max-width: 600px; margin: 12px 0 0; color: #aab7c9; font-size: 15px; line-height: 1.55; }
+.trust-row { display: flex; align-items: center; gap: 11px; color: #9aabc0; font-size: 12px; }
+.trust-row b { color: #e7eaf1; font-size: 11px; }
+.trust-divider { width: 3px; height: 3px; border-radius: 50%; background: #63738b; }
+.card.upload-card { padding: 20px; border: 1px solid #283850; border-radius: 22px; background: linear-gradient(145deg, rgba(18, 29, 46, .98), rgba(12, 20, 33, .98)); box-shadow: 0 18px 55px rgba(0, 0, 0, .28); }
+.upload-area { padding: 18px; border: 1px solid #283850; border-radius: 17px; background: linear-gradient(135deg, rgba(15, 25, 41, .98), rgba(11, 19, 32, .98)); text-align: left; }
+.upload-lead { display: flex; align-items: center; gap: 13px; margin-bottom: 15px; }
+.upload-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; margin: 0; border: 1px solid #453a72; border-radius: 14px; background: rgba(107, 81, 178, .19); font-size: 22px; }
+.upload-title { margin: 0 0 3px; color: var(--text); font-size: 19px; letter-spacing: -.025em; }
+.upload-text { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.file-box { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 0; padding: 12px; border: 1px dashed #465a76; border-radius: 14px; background: rgba(15, 26, 42, .72); }
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+.file-picker { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 132px; min-height: 46px; padding: 9px 13px; border: 1px solid #574997; border-radius: 11px; background: linear-gradient(135deg, #38276c, #292653); color: #f6f3ff; font-size: 14px; font-weight: 700; cursor: pointer; transition: border-color .18s ease, transform .18s ease, background .18s ease; }
+.file-picker:hover { border-color: #a48cf1; transform: translateY(-1px); }
+.file-picker-icon { font-size: 19px; line-height: 1; }
+.file-box:focus-within .file-picker { outline: 3px solid #c4b5fd; outline-offset: 3px; }
+.file-status { grid-column: 2; min-width: 0; margin: 0; color: #aab8cb; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.file-status.is-error { color: #ff9ca8; }
+.form-main-fields { margin-top: 15px; }
+.region-field { max-width: none; margin: 0; text-align: left; }
+.region-field label { display: flex; flex-direction: column; gap: 2px; margin-bottom: 7px; }
+.field-title { color: #e0e7f1; font-size: 13px; font-weight: 650; }
+.field-hint { color: #899bb2; font-size: 11px; line-height: 1.4; }
+.region-field input, .region-field select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #31445f; border-radius: 11px; background: #0c1625; color: #f4f7fb; font: inherit; font-size: 14px; }
+.region-field input::placeholder { color: #72839b; }
+.region-field input:focus, .region-field select:focus { border-color: #9b86e8; outline: 3px solid rgba(167, 139, 250, .15); }
+.advanced-settings { margin-top: 13px; border: 1px solid #263750; border-radius: 13px; background: rgba(12, 21, 34, .64); }
+.advanced-settings summary { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; list-style: none; cursor: pointer; }
+.advanced-settings summary::-webkit-details-marker { display: none; }
+.settings-symbol { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 9px; background: #1b2940; color: #c6b8ff; font-size: 16px; }
+.settings-copy { display: flex; flex: 1; flex-direction: column; gap: 1px; }
+.settings-copy strong { color: #e0e7f1; font-size: 13px; }
+.settings-copy small { color: #899bb2; font-size: 11px; }
+.settings-chevron { color: #9cabc0; font-size: 20px; transition: transform .18s ease; }
+.advanced-settings[open] .settings-chevron { transform: rotate(180deg); }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; padding: 2px 13px 14px; }
+.settings-grid .region-field { min-width: 0; }
+.settings-grid .region-field select, .settings-grid .region-field input { font-size: 13px; }
+.button { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; margin-top: 14px; padding: 12px 16px; border: 1px solid rgba(207, 193, 255, .22); border-radius: 13px; background: linear-gradient(105deg, #693bd1 0%, #7951e8 52%, #5b82e8 100%); box-shadow: 0 8px 24px rgba(94, 62, 187, .25); color: white; font-size: 15px; font-weight: 750; letter-spacing: .005em; transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
+.button:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(94, 62, 187, .34); }
+.button:disabled { cursor: wait; filter: saturate(.7); opacity: .86; transform: none; }
+.button-arrow { font-size: 21px; line-height: 1; }
+.upload-status:not(:empty) { max-width: none; margin: 12px 0 0; padding: 10px 12px; border: 1px solid #35445b; border-radius: 11px; background: #101a29; color: #d4def0; font-size: 12px; }
+.privacy-note { display: flex; align-items: flex-start; gap: 7px; margin: 11px 2px 0; color: #8999af; font-size: 11px; line-height: 1.45; text-align: left; }
+.privacy-note span { color: #baa9ff; }
+.features-section { margin-top: 24px; }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin: 0 2px 12px; }
+.section-heading .eyebrow { margin-bottom: 4px; }
+.section-heading h2 { margin: 0; color: #edf1f8; font-size: 19px; letter-spacing: -.025em; }
+.section-caption { color: #8292a8; font-size: 11px; }
+.feature-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.feature { min-width: 0; min-height: 112px; margin: 0; padding: 13px; border: 1px solid #23344b; border-radius: 15px; background: linear-gradient(145deg, #121e2f, #0e1827); }
+.feature-icon { display: grid; place-items: center; float: none; width: 30px; height: 30px; margin: 0 0 8px; border: 1px solid #2c3c55; border-radius: 9px; background: #1a2940; font-size: 16px; }
+.feature h3 { margin: 0 0 4px; color: #e8edf6; font-size: 13px; }
+.feature p { margin: 0; color: #93a2b7; font-size: 11px; line-height: 1.4; }
+.info { display: flex; justify-content: center; gap: 7px; margin-top: 20px; color: #718198; font-size: 11px; }
+
+@media (max-width: 640px) {
+    .container { width: 100%; padding: 16px 14px max(24px, env(safe-area-inset-bottom)); }
+    .hero { padding: 0 2px 16px; }
+    .brand-mark { width: 36px; height: 36px; border-radius: 11px; font-size: 19px; }
+    .brand-name { font-size: 15px; }
+    .status-chip { padding: 7px 9px; font-size: 10px; }
+    .hero-copy { margin: 23px 0 14px; }
+    .eyebrow { margin-bottom: 7px; font-size: 9px; letter-spacing: .13em; }
+    .hero h1 { font-size: clamp(32px, 8.8vw, 40px); line-height: 1.08; }
+    .hero .subtitle { margin-top: 9px; font-size: 13px; line-height: 1.5; }
+    .trust-row { gap: 8px; font-size: 10px; }
+    .card.upload-card { padding: 13px; margin-bottom: 0; border-radius: 18px; }
+    .upload-area { padding: 13px; border-radius: 14px; }
+    .upload-lead { gap: 10px; margin-bottom: 12px; }
+    .upload-icon { flex-basis: 38px; width: 38px; height: 38px; border-radius: 12px; font-size: 19px; }
+    .upload-title { font-size: 16px; }
+    .upload-text { font-size: 11px; }
+    .file-box { grid-template-columns: 1fr; gap: 7px; padding: 9px; }
+    .file-picker { width: 100%; min-height: 44px; font-size: 13px; }
+    .file-status { grid-column: 1; font-size: 11px; text-align: center; }
+    .form-main-fields { margin-top: 12px; }
+    .field-title { font-size: 12px; }
+    .field-hint { font-size: 10px; }
+    .region-field input, .region-field select { min-height: 44px; padding: 9px 11px; font-size: 16px; }
+    .advanced-settings { margin-top: 10px; }
+    .advanced-settings summary { min-height: 48px; padding: 7px 9px; }
+    .settings-grid { grid-template-columns: 1fr; gap: 10px; padding: 1px 10px 11px; }
+    .settings-grid .region-field select, .settings-grid .region-field input { min-height: 44px; font-size: 16px; }
+    .button { min-height: 48px; margin-top: 11px; padding: 11px 13px; border-radius: 12px; font-size: 14px; }
+    .privacy-note { margin-top: 9px; font-size: 10px; }
+    .features-section { margin-top: 20px; }
+    .section-heading { align-items: end; margin-bottom: 9px; }
+    .section-heading h2 { font-size: 16px; }
+    .section-caption { max-width: 120px; font-size: 9px; text-align: right; }
+    .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .feature { min-height: 96px; padding: 10px; border-radius: 13px; }
+    .feature-icon { width: 27px; height: 27px; margin-bottom: 6px; font-size: 14px; }
+    .feature h3 { font-size: 12px; }
+    .feature p { font-size: 10px; }
+    .info { margin-top: 16px; font-size: 10px; }
+}
+
+@media (max-width: 360px) {
+    .container { padding-right: 10px; padding-left: 10px; }
+    .status-chip { font-size: 9px; }
+    .hero h1 { font-size: 31px; }
+    .trust-row { gap: 6px; font-size: 9px; }
+    .card.upload-card { padding: 10px; }
+    .upload-area { padding: 10px; }
+    .section-caption { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .file-picker, .button, .settings-chevron { transition: none; }
+}
+
 </style>
 
 </head>
@@ -551,209 +701,184 @@ input[type="file"]::file-selector-button {
 <body>
 
 <div class="container">
-
-    <div class="header">
-
-        <div class="logo">🏗️</div>
-
-        <h1>İnşaat AI</h1>
-
-        <div class="subtitle">
-            Yapay zekâ destekli otonom
-            inşaat proje analiz sistemi
+    <header class="hero">
+        <div class="brand-row">
+            <a class="brand" href="/" aria-label="İnşaat AI ana sayfa">
+                <span class="brand-mark" aria-hidden="true">🏗️</span>
+                <span class="brand-name">İnşaat <strong>AI</strong></span>
+            </a>
+            <span class="status-chip"><span class="status-dot"></span> Proje analiz asistanı</span>
         </div>
 
-    </div>
+        <div class="hero-copy">
+            <p class="eyebrow">METRAJ · MALZEME · YAKLAŞIK MALİYET</p>
+            <h1>Planı yükle.<br><span>Maliyeti gör.</span></h1>
+            <p class="subtitle">Paftalardan ölçüleri çıkar, malzeme miktarlarını ve kaynaklı fiyat aralığını tek raporda incele.</p>
+        </div>
 
+        <div class="trust-row" aria-label="Desteklenen dosya türleri ve sınırlar">
+            <span><b>PDF</b> ve görseller</span>
+            <span class="trust-divider" aria-hidden="true"></span>
+            <span>50 MB'a kadar</span>
+            <span class="trust-divider" aria-hidden="true"></span>
+            <span>Türkçe rapor</span>
+        </div>
+    </header>
 
-    <div class="card">
-
-        <div class="upload-area">
-
-            <div class="upload-icon">
-                📄
-            </div>
-
-            <div class="upload-title">
-                Proje dosyanızı yükleyin
-            </div>
-
-            <div class="upload-text">
-                PDF, JPG/JPEG, PNG veya WEBP proje dosyanızı yükleyin.
-                En fazla 50 MB dosya kabul edilir.
-                Sayfalar incelenir; metraj, yaklaşık malzeme miktarı ve
-                seçtiğiniz bölge için kaynaklı fiyat aralığı raporlanır.
-            </div>
-
-            <p class="processing-note">
-                Görsel inceleme için sayfa görselleri; fiyat araştırması için
-                malzeme ve miktar özeti sunucuda yapılandırılan OpenAI API'ye gönderilir.
-            </p>
-
-
-            <!--
-                ÖNEMLİ:
-                Burada JavaScript fetch KULLANILMIYOR.
-                Dosya doğrudan sunucuya gönderiliyor.
-            -->
-
+    <main>
+        <section class="card upload-card" aria-labelledby="upload-heading">
             <form
                 id="project-upload-form"
                 action="/proje/analiz-et"
                 method="post"
                 enctype="multipart/form-data"
             >
+                <div class="upload-area">
+                    <div class="upload-lead">
+                        <span class="upload-icon" aria-hidden="true">📐</span>
+                        <div>
+                            <h2 class="upload-title" id="upload-heading">Projeni seç</h2>
+                            <p class="upload-text">PDF, JPG, PNG veya WEBP paftanı yükle.</p>
+                        </div>
+                    </div>
 
-                <div class="file-box">
-
-                    <input
-                        id="project-file"
-                        type="file"
-                        name="dosya"
-                        accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-                        aria-describedby="file-status"
-                        required
-                    >
-                    <p id="file-status" class="file-status" aria-live="polite">PDF veya görsel dosyanızı seçin. En fazla 50 MB.</p>
-
+                    <div class="file-box">
+                        <input
+                            id="project-file"
+                            class="visually-hidden"
+                            type="file"
+                            name="dosya"
+                            accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                            aria-describedby="file-status"
+                            required
+                        >
+                        <label class="file-picker" for="project-file">
+                            <span class="file-picker-icon" aria-hidden="true">↑</span>
+                            <span>Dosya seç</span>
+                        </label>
+                        <p id="file-status" class="file-status" aria-live="polite">Henüz dosya seçilmedi · En fazla 50 MB</p>
+                    </div>
                 </div>
 
-                <div class="region-field">
-                    <label for="fiyat_bolgesi">Fiyat araştırma bölgesi</label>
-                    <input id="fiyat_bolgesi" name="fiyat_bolgesi" type="text"
-                           maxlength="60" value="Türkiye geneli"
-                           placeholder="Örn. İstanbul, Ankara, İzmir">
-                    <small>Fiyatlar bölgeye göre değişebilir. Şehir yazmazsan Türkiye geneli aranır.</small>
+                <div class="form-main-fields">
+                    <div class="region-field region-primary">
+                        <label for="fiyat_bolgesi">
+                            <span class="field-title">Fiyat araştırma bölgesi</span>
+                            <span class="field-hint">Şehir yazmazsan Türkiye geneli aranır.</span>
+                        </label>
+                        <input
+                            id="fiyat_bolgesi"
+                            name="fiyat_bolgesi"
+                            type="text"
+                            maxlength="60"
+                            value="Türkiye geneli"
+                            placeholder="Örn. İstanbul"
+                        >
+                    </div>
                 </div>
 
-                <div class="region-field">
-                    <label for="kuru_alan_kaplamasi">Kuru odalar için zemin varsayımı</label>
-                    <select id="kuru_alan_kaplamasi" name="kuru_alan_kaplamasi">
-                        <option value="laminat" selected>Kuru odalarda laminat; mutfak, ıslak hacimler ve balkon seramik</option>
-                        <option value="seramik">Bütün odalarda seramik</option>
-                    </select>
-                    <small>Bu seçim, oda ölçülerinden türetilen yaklaşık metraj varsayımını belirler.</small>
-                </div>
+                <details class="advanced-settings">
+                    <summary>
+                        <span class="settings-symbol" aria-hidden="true">⚙</span>
+                        <span class="settings-copy">
+                            <strong>Hesap seçenekleri</strong>
+                            <small>Birim belirsizse hariç · laminat · %10 fire</small>
+                        </span>
+                        <span class="settings-chevron" aria-hidden="true">⌄</span>
+                    </summary>
 
-                <div class="region-field">
-                    <label for="olcu_birimi_varsayimi">Çizimde oda ölçüsünün birimi yazmıyorsa</label>
-                    <select id="olcu_birimi_varsayimi" name="olcu_birimi_varsayimi">
-                        <option value="belirsiz" selected>Varsayım yapma, ölçüyü dışarıda bırak</option>
-                        <option value="cm">cm kabul et (örn. 550 × 260)</option>
-                        <option value="m">m kabul et</option>
-                    </select>
-                    <small>Seçilen varsayıma dayanan metrajlar yaklaşık olarak işaretlenir.</small>
-                </div>
+                    <div class="settings-grid">
+                        <div class="region-field">
+                            <label for="kuru_alan_kaplamasi">
+                                <span class="field-title">Kuru odaların zemini</span>
+                                <span class="field-hint">Islak alanlar seramik kabul edilir.</span>
+                            </label>
+                            <select id="kuru_alan_kaplamasi" name="kuru_alan_kaplamasi">
+                                <option value="laminat" selected>Kuru alanlarda laminat</option>
+                                <option value="seramik">Tüm alanlarda seramik</option>
+                            </select>
+                        </div>
 
-                <div class="region-field">
-                    <label for="fire_yuzdesi">Kaplama kesim/fire payı (%)</label>
-                    <input id="fire_yuzdesi" name="fire_yuzdesi" type="number"
-                           min="0" max="25" step="1" value="10">
-                </div>
+                        <div class="region-field">
+                            <label for="olcu_birimi_varsayimi">
+                                <span class="field-title">Ölçü birimi belirsizse</span>
+                                <span class="field-hint">Varsayılan seçim ölçüyü dışarıda bırakır.</span>
+                            </label>
+                            <select id="olcu_birimi_varsayimi" name="olcu_birimi_varsayimi">
+                                <option value="belirsiz" selected>Varsayım yapma</option>
+                                <option value="cm">Santimetre kabul et</option>
+                                <option value="m">Metre kabul et</option>
+                            </select>
+                        </div>
 
-                <div class="region-field">
-                    <label for="tavan_yuksekligi">Tavan yüksekliği (m)</label>
-                    <input id="tavan_yuksekligi" name="tavan_yuksekligi" type="number"
-                           min="2" max="5" step="0.05" value="2.8">
-                </div>
+                        <div class="region-field">
+                            <label for="fire_yuzdesi">
+                                <span class="field-title">Kaplama fire payı</span>
+                                <span class="field-hint">Yüzde · 0 ile 25 arasında</span>
+                            </label>
+                            <input id="fire_yuzdesi" name="fire_yuzdesi" type="number" min="0" max="25" step="1" value="10">
+                        </div>
 
+                        <div class="region-field">
+                            <label for="tavan_yuksekligi">
+                                <span class="field-title">Tavan yüksekliği</span>
+                                <span class="field-hint">Metre · 2 ile 5 arasında</span>
+                            </label>
+                            <input id="tavan_yuksekligi" name="tavan_yuksekligi" type="number" min="2" max="5" step="0.05" value="2.8">
+                        </div>
+                    </div>
+                </details>
 
-                <button
-                    id="project-submit"
-                    type="submit"
-                    class="button"
-                >
-                    🚀 Projeyi Analiz Et
+                <button id="project-submit" type="submit" class="button">
+                    <span>Projeyi analiz et</span>
+                    <span class="button-arrow" aria-hidden="true">→</span>
                 </button>
 
                 <p id="upload-status" class="upload-status" role="status" aria-live="polite"></p>
-
+                <p class="privacy-note"><span aria-hidden="true">✦</span> Pafta görselleri ve malzeme özeti analiz için sunucuda yapılandırılmış OpenAI API'ye gönderilir.</p>
             </form>
+        </section>
 
-        </div>
-
-    </div>
-
-
-    <div class="card">
-
-        <div class="features-title">
-            🤖 Sistem Özellikleri
-        </div>
-
-
-        <div class="feature">
-
-            <div class="feature-icon">
-                📐
+        <section class="features-section" aria-labelledby="features-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">RAPORUNDA</p>
+                    <h2 id="features-heading">İhtiyacın olan her şey</h2>
+                </div>
+                <span class="section-caption">Tek yükleme · Kaynaklı sonuç</span>
             </div>
 
-            <h3>Metraj</h3>
-
-            <p>
-                Yazılı metrajları okur; oda alanlarını ve
-                yaklaşık kaplama miktarlarını hesaplar.
-            </p>
-
-        </div>
-
-
-        <div class="feature">
-
-            <div class="feature-icon">
-                🧱
+            <div class="feature-grid">
+                <article class="feature">
+                    <span class="feature-icon" aria-hidden="true">📐</span>
+                    <h3>Metraj</h3>
+                    <p>Yazılı ölçüler ve oda alanları.</p>
+                </article>
+                <article class="feature">
+                    <span class="feature-icon" aria-hidden="true">🧱</span>
+                    <h3>Malzeme</h3>
+                    <p>Paftadaki kalemler ve dayanakları.</p>
+                </article>
+                <article class="feature">
+                    <span class="feature-icon" aria-hidden="true">₺</span>
+                    <h3>Maliyet</h3>
+                    <p>Güncel fiyatlarla yaklaşık aralık.</p>
+                </article>
+                <article class="feature">
+                    <span class="feature-icon" aria-hidden="true">✦</span>
+                    <h3>Analiz raporu</h3>
+                    <p>Belirsizlikler ve kaynaklar açıkça.</p>
+                </article>
             </div>
+        </section>
+    </main>
 
-            <h3>Malzeme</h3>
-
-            <p>
-                Paftalarda yazılı veya sayılabilen
-                malzeme kalemlerini kaynaklarıyla ayırır.
-            </p>
-
-        </div>
-
-
-        <div class="feature">
-
-            <div class="feature-icon">
-                💰
-            </div>
-
-            <h3>Maliyet</h3>
-
-            <p>
-                Kaynaklı güncel birim fiyatlarla
-                yaklaşık malzeme maliyeti çıkarır.
-            </p>
-
-        </div>
-
-
-        <div class="feature">
-
-            <div class="feature-icon">
-                🤖
-            </div>
-
-            <h3>Otonom Analiz</h3>
-
-            <p>
-                Proje sayfalarını otomatik olarak
-                sınıflandırır ve analiz eder.
-            </p>
-
-        </div>
-
-    </div>
-
-
-    <div class="info">
-        İnşaat AI • Sürüm __APP_VERSION__
-    </div>
-
+    <footer class="info">
+        <span>İnşaat AI</span>
+        <span aria-hidden="true">·</span>
+        <span>Sürüm __APP_VERSION__</span>
+    </footer>
 </div>
-
 <script>
 (() => {
     const form = document.getElementById("project-upload-form");
@@ -795,7 +920,7 @@ input[type="file"]::file-selector-button {
 
     window.addEventListener("pageshow", () => {
         submitButton.disabled = false;
-        submitButton.textContent = "🚀 Projeyi Analiz Et";
+        submitButton.textContent = "Projeyi analiz et →";
         uploadStatus.textContent = "";
         uploadStatus.classList.remove("is-loading");
         form.removeAttribute("aria-busy");
@@ -1642,6 +1767,76 @@ details > summary {{
 
 @media (prefers-reduced-motion: reduce) {{
     *, *::before, *::after {{ scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }}
+}}
+
+:root {{
+    color-scheme: dark;
+    --report-bg: #080d16;
+    --report-panel: #101a29;
+    --report-line: #263750;
+    --report-muted: #9aa9be;
+}}
+
+html {{ scroll-behavior: smooth; }}
+body {{
+    background:
+        radial-gradient(ellipse at 10% -8%, rgba(91, 54, 174, .24), transparent 34rem),
+        radial-gradient(ellipse at 100% 24%, rgba(34, 91, 132, .12), transparent 30rem),
+        var(--report-bg);
+}}
+.container {{ width: min(100% - 44px, 1060px); padding: 22px 0 44px; }}
+.card {{ padding: 20px; margin-bottom: 14px; border: 1px solid var(--report-line); border-radius: 19px; background: linear-gradient(145deg, rgba(17, 28, 44, .98), rgba(12, 20, 33, .98)); box-shadow: 0 12px 34px rgba(0, 0, 0, .17); }}
+h1 {{ margin-bottom: 10px; font-size: clamp(26px, 4vw, 35px); letter-spacing: -.035em; line-height: 1.2; }}
+h2 {{ margin: 0 0 13px; color: #eef2f8; font-size: clamp(19px, 2.4vw, 23px); letter-spacing: -.025em; }}
+h3 {{ margin: 18px 0 8px; color: #dce5f2; font-size: 15px; }}
+p {{ color: #c1cbd9; font-size: 14px; line-height: 1.55; }}
+.card > p:first-of-type {{ margin-top: 8px; }}
+.success {{ display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 14px; padding: 8px 12px; border: 1px solid #24684e; border-radius: 999px; background: rgba(19, 91, 62, .22); color: #77e7ad; font-size: 12px; font-weight: 700; }}
+.grid {{ grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 9px; }}
+.stat {{ padding: 14px; border: 1px solid #273a54; border-radius: 14px; background: linear-gradient(145deg, #142137, #101a29); }}
+.stat-number {{ color: #f2f5fa; font-size: 27px; letter-spacing: -.04em; }}
+.stat-label {{ color: #92a2b8; font-size: 12px; }}
+.report-nav {{ margin: 0 0 14px; padding: 8px; border-color: #293a52; border-radius: 15px; background: rgba(10, 17, 28, .94); }}
+.report-nav a {{ min-height: 40px; padding: 7px 11px; border-color: #2c3e58; background: #121e30; font-size: 12px; }}
+table {{ min-width: 620px; border-collapse: separate; border-spacing: 0; font-size: 13px; }}
+th, td {{ padding: 10px; border-bottom: 1px solid #26354a; vertical-align: top; }}
+th {{ background: #142137; color: #b9a8ff; font-size: 11px; letter-spacing: .025em; }}
+td {{ color: #d1d9e5; }}
+.table-container {{ border: 1px solid #26364d; border-radius: 12px; background: rgba(10, 17, 28, .48); }}
+.table-container table {{ margin: 0; }}
+.table-container a {{ color: #b8a6ff; overflow-wrap: anywhere; }}
+.tag {{ padding: 7px 10px; border: 1px solid #403a6b; border-radius: 999px; background: rgba(71, 58, 132, .32); font-size: 12px; }}
+.warning {{ border-color: #65502d; border-radius: 13px; background: rgba(74, 52, 22, .45); font-size: 13px; line-height: 1.5; }}
+.button {{ min-height: 46px; padding: 12px 15px; border: 1px solid rgba(207, 193, 255, .22); border-radius: 12px; background: linear-gradient(105deg, #653bc7, #7650df 55%, #527ed8); font-size: 14px; box-shadow: 0 8px 24px rgba(94, 62, 187, .2); }}
+.button:hover {{ filter: brightness(1.08); transform: translateY(-1px); }}
+details {{ border: 1px solid #273750; border-radius: 12px; background: rgba(10, 17, 28, .42); }}
+details > summary {{ min-height: 44px; padding: 7px 12px; color: #dce5f2; font-size: 13px; font-weight: 650; }}
+details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #c9d3e1; font-size: 12px; line-height: 1.5; }}
+:focus-visible {{ outline: 3px solid #c4b5fd; outline-offset: 3px; }}
+
+@media (max-width: 640px) {{
+    .container {{ width: 100%; padding: 12px 12px max(28px, env(safe-area-inset-bottom)); }}
+    .card {{ padding: 14px 13px; margin-bottom: 11px; border-radius: 16px; }}
+    h1 {{ font-size: clamp(24px, 7vw, 30px); }}
+    h2 {{ margin-bottom: 10px; font-size: 18px; }}
+    h3 {{ margin-top: 15px; font-size: 14px; }}
+    p {{ font-size: 13px; }}
+    .success {{ margin-bottom: 10px; padding: 7px 10px; font-size: 11px; }}
+    .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }}
+    .stat {{ min-width: 0; padding: 11px 10px; border-radius: 12px; }}
+    .stat-number {{ font-size: 24px; }}
+    .stat-label {{ font-size: 10px; line-height: 1.35; }}
+    .report-nav {{ top: max(5px, env(safe-area-inset-top)); margin: 0 0 11px; padding: 6px; border-radius: 13px; }}
+    .report-nav a {{ min-height: 40px; padding: 7px 10px; font-size: 11px; }}
+    table {{ min-width: 560px; font-size: 12px; }}
+    th {{ font-size: 10px; }}
+    th, td {{ padding: 8px; }}
+    .table-container {{ border-radius: 10px; }}
+    .table-container::after {{ display: block; padding: 5px 9px 7px; color: #8292a8; content: "Tablonun devamı için yana kaydırın →"; font-size: 10px; }}
+    .button {{ min-height: 46px; padding: 12px; border-radius: 11px; font-size: 14px; }}
+    .tag {{ padding: 6px 9px; font-size: 11px; }}
+    .warning {{ padding: 11px; font-size: 12px; }}
+    .card[id] {{ scroll-margin-top: 68px; }}
 }}
 
 @page {{
