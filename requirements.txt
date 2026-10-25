@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 python-multipart
+itsdangerous
 pydantic
 pypdf
 PyMuPDF>=1.24,<2
