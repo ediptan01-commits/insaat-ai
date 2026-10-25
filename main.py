@@ -92,8 +92,8 @@ def _analiz_bilesenlerini_dogrula() -> None:
 # ============================================================
 
 app = FastAPI(
-    title="İnşaat AI",
-    description="Otonom inşaat proje metraj ve maliyet analiz sistemi",
+    title="Metraj ve Maliyet AI",
+    description="Proje dosyalarından metraj, malzeme miktarı ve kaynaklı yaklaşık maliyet analizi",
     version=APP_VERSION
 )
 
@@ -130,7 +130,7 @@ def ana_sayfa():
 
 <meta name="theme-color" content="#0b0f17">
 
-<title>İnşaat AI</title>
+<title>Metraj ve Maliyet AI</title>
 
 <style>
 
@@ -703,16 +703,16 @@ body {
 <div class="container">
     <header class="hero">
         <div class="brand-row">
-            <a class="brand" href="/" aria-label="İnşaat AI ana sayfa">
+            <a class="brand" href="/" aria-label="Metraj ve Maliyet AI ana sayfa">
                 <span class="brand-mark" aria-hidden="true">🏗️</span>
-                <span class="brand-name">İnşaat <strong>AI</strong></span>
+                <span class="brand-name">Metraj <strong>&amp; Maliyet</strong></span>
             </a>
-            <span class="status-chip"><span class="status-dot"></span> Proje analiz asistanı</span>
+            <span class="status-chip"><span class="status-dot"></span> AI proje analizi</span>
         </div>
 
         <div class="hero-copy">
             <p class="eyebrow">METRAJ · MALZEME · YAKLAŞIK MALİYET</p>
-            <h1>Planı yükle.<br><span>Maliyeti gör.</span></h1>
+            <h1>Projeyi yükle.<br><span>Malzemeyi hesapla.</span><br>Maliyeti gör.</h1>
             <p class="subtitle">Paftalardan ölçüleri çıkar, malzeme miktarlarını ve kaynaklı fiyat aralığını tek raporda incele.</p>
         </div>
 
@@ -874,7 +874,7 @@ body {
     </main>
 
     <footer class="info">
-        <span>İnşaat AI</span>
+        <span>Metraj ve Maliyet AI</span>
         <span aria-hidden="true">·</span>
         <span>Sürüm __APP_VERSION__</span>
     </footer>
@@ -1412,7 +1412,7 @@ def sonuc_sayfasi(
 
 <meta name="theme-color" content="#080c13">
 
-<title>Proje Analizi - İnşaat AI</title>
+<title>Proje Analizi - Metraj ve Maliyet AI</title>
 
 <style>
 
@@ -2214,7 +2214,7 @@ async def health():
 
     return {
         "durum": "çalışıyor",
-        "sistem": "İnşaat AI",
+        "sistem": "Metraj ve Maliyet AI",
         "surum": APP_VERSION,
         "openai_api_anahtari_tanimli": bool(os.getenv("OPENAI_API_KEY", "").strip()),
         "gorsel_analiz_modeli": os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
