@@ -20,8 +20,8 @@ android {
         applicationId 'com.insaatai.app'
         minSdk 23
         targetSdk 36
-        versionCode = (project.findProperty('APP_VERSION_CODE') ?: '1').toInteger()
-        versionName = project.findProperty('APP_VERSION_NAME') ?: '0.6.34'
+        versionCode = (project.findProperty('APP_VERSION_CODE') ?: '2').toInteger()
+        versionName = project.findProperty('APP_VERSION_NAME') ?: '0.6.35'
         resValue 'string', 'app_home_url', project.findProperty('APP_HOME_URL') ?: 'https://insaat-ai.onrender.com/'
     }
 

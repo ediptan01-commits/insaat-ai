@@ -1,7 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from starlette.middleware.sessions import SessionMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from servisler.pdf_service import pdf_oku
 from servisler.image_service import gorsel_dosyasi_oku
 from servisler import quantity_service
@@ -11,148 +10,14 @@ import tempfile
 import os
 import html
 import json
+import secrets
 import asyncio
 import re
-import sqlite3
-import secrets
-import hashlib
-import hmac
-from contextlib import contextmanager
-from datetime import datetime, timezone, timedelta
 
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 MAKS_YUKLEME_BAYT = 50 * 1024 * 1024
-APP_VERSION = "0.6.34"
-AYLIK_ANALIZ_HAKKI = 5
-VERITABANI_YOLU = os.getenv("DATABASE_PATH", "insaat_ai.sqlite3")
-
-
-@contextmanager
-def _db_baglantisi():
-    klasor = os.path.dirname(os.path.abspath(VERITABANI_YOLU))
-    os.makedirs(klasor, exist_ok=True)
-    baglanti = sqlite3.connect(VERITABANI_YOLU, timeout=30)
-    baglanti.row_factory = sqlite3.Row
-    try:
-        yield baglanti
-        baglanti.commit()
-    except Exception:
-        baglanti.rollback()
-        raise
-    finally:
-        baglanti.close()
-
-
-def _veritabaniyi_hazirla():
-    with _db_baglantisi() as db:
-        db.executescript("""
-            PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                email TEXT NOT NULL UNIQUE,
-                salt TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                filename TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                billing_month TEXT NOT NULL,
-                status TEXT NOT NULL,
-                source_json TEXT,
-                analysis_json TEXT,
-                error TEXT
-            );
-            CREATE INDEX IF NOT EXISTS projects_user_month ON projects(user_id, billing_month, status);
-        """)
-
-
-_veritabaniyi_hazirla()
-
-
-def _aylik_kullanim(user_id: int, ay: str | None = None) -> int:
-    ay = ay or datetime.now(timezone.utc).strftime("%Y-%m")
-    with _db_baglantisi() as db:
-        return db.execute(
-            "SELECT COUNT(*) FROM projects WHERE user_id=? AND billing_month=? AND status IN ('processing','completed')",
-            (user_id, ay),
-        ).fetchone()[0]
-
-
-def _analiz_hakki_rezerve_et(user_id: int, dosya_adi: str) -> int:
-    ay = datetime.now(timezone.utc).strftime("%Y-%m")
-    with _db_baglantisi() as db:
-        db.execute("BEGIN IMMEDIATE")
-        stale_before = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
-        db.execute(
-            "UPDATE projects SET status='failed', error='İşlem zaman aşımına uğradı.' WHERE status='processing' AND created_at < ?",
-            (stale_before,),
-        )
-        kullanilan = db.execute(
-            "SELECT COUNT(*) FROM projects WHERE user_id=? AND billing_month=? AND status IN ('processing','completed')",
-            (user_id, ay),
-        ).fetchone()[0]
-        if kullanilan >= AYLIK_ANALIZ_HAKKI:
-            raise HTTPException(status_code=429, detail="Bu ayki 5 analiz hakkınız doldu. Haklarınız gelecek ay yenilenir.")
-        cur = db.execute(
-            "INSERT INTO projects(user_id,filename,created_at,billing_month,status) VALUES(?,?,?,?, 'processing')",
-            (user_id, os.path.basename(dosya_adi)[:255], datetime.now(timezone.utc).isoformat(), ay),
-        )
-        return cur.lastrowid
-
-
-def _parola_ozeti(parola: str, salt: bytes) -> str:
-    return hashlib.pbkdf2_hmac("sha256", parola.encode("utf-8"), salt, 310_000).hex()
-
-
-def _oturum_anahtari():
-    anahtar = os.getenv("SESSION_SECRET", "").strip()
-    if anahtar:
-        return anahtar
-    yol = VERITABANI_YOLU + ".session_secret"
-    os.makedirs(os.path.dirname(os.path.abspath(yol)), exist_ok=True)
-    try:
-        with open(yol, "x", encoding="utf-8") as dosya:
-            dosya.write(secrets.token_urlsafe(48))
-    except FileExistsError:
-        pass
-    with open(yol, "r", encoding="utf-8") as dosya:
-        return dosya.read().strip()
-
-
-def _mevcut_kullanici(request: Request):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        return None
-    with _db_baglantisi() as db:
-        return db.execute("SELECT id,email FROM users WHERE id=?", (user_id,)).fetchone()
-
-
-def _kayitli_veriyi_kucult(veri):
-    """Rapor için gereksiz sayfa görseli/base64 verilerini kalıcı kayda alma."""
-    if isinstance(veri, dict):
-        return {k: _kayitli_veriyi_kucult(v) for k, v in veri.items() if k not in {"gorsel_analiz_girdisi", "data_url", "gorsel_verisi"}}
-    if isinstance(veri, list):
-        return [_kayitli_veriyi_kucult(v) for v in veri]
-    if isinstance(veri, str) and veri.startswith("data:image/"):
-        return "[Görsel veri kaydedilmedi]"
-    return veri
-
-
-def _analiz_kaydini_tamamla(project_id: int, sonuc: dict, analiz: dict):
-    with _db_baglantisi() as db:
-        db.execute(
-            "UPDATE projects SET status='completed', source_json=?, analysis_json=?, error=NULL WHERE id=?",
-            (json.dumps(_kayitli_veriyi_kucult(sonuc), ensure_ascii=False), json.dumps(_kayitli_veriyi_kucult(analiz), ensure_ascii=False), project_id),
-        )
-
-
-def _analiz_kaydini_basarisiz(project_id: int, hata: str):
-    with _db_baglantisi() as db:
-        db.execute("UPDATE projects SET status='failed', error=? WHERE id=?", (str(hata)[:500], project_id))
+APP_VERSION = "0.6.35"
 
 
 async def _yuklemeyi_gecici_dosyaya_yaz(dosya: UploadFile, uzanti: str) -> str:
@@ -232,14 +97,6 @@ app = FastAPI(
     description="Proje dosyalarından metraj, malzeme miktarı ve kaynaklı yaklaşık maliyet analizi",
     version=APP_VERSION
 )
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=_oturum_anahtari(),
-    session_cookie="insaat_ai_session",
-    same_site="lax",
-    https_only=os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true",
-    max_age=60 * 60 * 24 * 30,
-)
 
 
 # ============================================================
@@ -259,48 +116,7 @@ app.add_middleware(
 # ANA SAYFA TASARIMI
 # ============================================================
 
-def _hesap_paneli(kullanici):
-    if not kullanici:
-        return '''
-        <section class="card" aria-labelledby="account-heading">
-            <h2 id="account-heading">Analizlerini kaydetmek için giriş yap</h2>
-            <p class="subtitle">Her hesapta ayda 5 analiz hakkı. Tamamlanan raporlar hesabında saklanır.</p>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px">
-                <form action="/hesap/giris" method="post" class="region-field">
-                    <h3>Giriş yap</h3>
-                    <label>E-posta<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
-                    <label>Şifre<input name="parola" type="password" autocomplete="current-password" required></label>
-                    <button class="button" type="submit">Giriş yap</button>
-                </form>
-                <form action="/hesap/kayit" method="post" class="region-field">
-                    <h3>Hesap oluştur</h3>
-                    <label>E-posta<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
-                    <label>Şifre (en az 10 karakter)<input name="parola" type="password" autocomplete="new-password" minlength="10" required></label>
-                    <button class="button" type="submit">Ücretsiz hesap oluştur</button>
-                </form>
-            </div>
-        </section>
-        '''
-    email = html.escape(kullanici["email"])
-    ay = datetime.now(timezone.utc).strftime("%Y-%m")
-    kalan = max(0, AYLIK_ANALIZ_HAKKI - _aylik_kullanim(kullanici["id"], ay))
-    with _db_baglantisi() as db:
-        rows = db.execute(
-            "SELECT id,filename,created_at FROM projects WHERE user_id=? AND status='completed' ORDER BY id DESC LIMIT 20",
-            (kullanici["id"],),
-        ).fetchall()
-    gecmis = "".join(
-        f'<li><a href="/projeler/{r["id"]}">{html.escape(r["filename"])}</a> <small>{html.escape(r["created_at"][:16].replace("T", " "))} UTC</small></li>'
-        for r in rows
-    ) or "<li>Henüz kayıtlı analiz yok.</li>"
-    return f'''<section class="card" aria-labelledby="account-heading">
-        <h2 id="account-heading">Merhaba, {email}</h2>
-        <p><strong>Bu ay kalan analiz hakkı: {kalan}/{AYLIK_ANALIZ_HAKKI}</strong> · Haklar her ay başında yenilenir.</p>
-        <form action="/hesap/cikis" method="post"><button class="button" type="submit">Çıkış yap</button></form>
-        <h3>Kayıtlı analizlerin</h3><ul>{gecmis}</ul>
-    </section>'''
-
-def ana_sayfa(kullanici=None):
+def ana_sayfa():
 
     return """
 <!DOCTYPE html>
@@ -394,6 +210,10 @@ h1 {
     box-shadow:
         0 20px 60px rgba(0,0,0,0.35);
 }
+
+.local-report-list { display: grid; gap: 8px; padding-left: 20px; }
+.local-report-open, .local-report-delete { min-height: 38px; border: 1px solid #34445d; border-radius: 10px; padding: 7px 11px; background: #121d2d; color: #eef3ff; font: inherit; cursor: pointer; }
+.local-report-delete { margin-left: 6px; color: #ffc1c7; }
 
 .upload-area {
     border: 2px dashed #53627c;
@@ -911,7 +731,12 @@ body {
     </header>
 
     <main>
-        __ACCOUNT_PANEL__
+        <section class="card" id="local-projects" aria-labelledby="local-projects-heading">
+            <h2 id="local-projects-heading">Kayıtlı analizlerin</h2>
+            <p class="subtitle" id="quota-status" aria-live="polite">Bu cihazda ayda 5 analiz hakkı.</p>
+            <ul id="local-report-list" class="local-report-list"><li>Bu cihazda kayıtlı rapor aranıyor…</li></ul>
+            <p class="field-hint">Raporlar bu cihazda saklanır. Uygulama veya tarayıcı verilerini silersen kayıtlar da silinir.</p>
+        </section>
         <section class="card upload-card" aria-labelledby="upload-heading">
             <form
                 id="project-upload-form"
@@ -1074,6 +899,41 @@ body {
     const uploadStatus = document.getElementById("upload-status");
     if (!form || !fileInput || !fileStatus || !submitButton || !uploadStatus) return;
 
+    const reportsKey = "insaat_ai_saved_reports_v1";
+    const quotaKey = "insaat_ai_local_quota_v1";
+    const reports = () => {
+        try { const value = JSON.parse(localStorage.getItem(reportsKey) || "[]"); return Array.isArray(value) ? value : []; }
+        catch (_) { return []; }
+    };
+    const currentMonth = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    };
+    const usedThisMonth = () => {
+        try { const quota = JSON.parse(localStorage.getItem(quotaKey) || "{}"); return Array.isArray(quota[currentMonth()]) ? quota[currentMonth()].length : 0; }
+        catch (_) { return 0; }
+    };
+    const quotaStatus = document.getElementById("quota-status");
+    const reportList = document.getElementById("local-report-list");
+    const renderLocalReports = () => {
+        const items = reports().sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+        const remaining = Math.max(0, 5 - usedThisMonth());
+        if (quotaStatus) quotaStatus.textContent = `Bu ay kalan analiz hakkı: ${remaining}/5 · Haklar her ay yenilenir.`;
+        if (reportList) {
+            reportList.innerHTML = items.length ? items.map(item => `<li><button type="button" class="local-report-open" data-report-id="${String(item.id).replace(/[^a-zA-Z0-9_-]/g, "")}">${String(item.filename || "Proje raporu").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))} · ${new Date(item.savedAt).toLocaleDateString("tr-TR")}</button> <button type="button" class="local-report-delete" data-delete-report="${String(item.id).replace(/[^a-zA-Z0-9_-]/g, "")}" aria-label="Raporu sil">Sil</button></li>`).join("") : "<li>Bu cihazda henüz kayıtlı analiz yok.</li>";
+            reportList.querySelectorAll("[data-report-id]").forEach(button => button.addEventListener("click", () => {
+                const item = reports().find(report => report.id === button.dataset.reportId);
+                if (!item?.html) return;
+                document.open(); document.write(item.html); document.close();
+            }));
+            reportList.querySelectorAll("[data-delete-report]").forEach(button => button.addEventListener("click", () => {
+                const remainingItems = reports().filter(report => report.id !== button.dataset.deleteReport);
+                localStorage.setItem(reportsKey, JSON.stringify(remainingItems)); renderLocalReports();
+            }));
+        }
+    };
+    renderLocalReports();
+
     const maxBytes = 50 * 1024 * 1024;
     const formatSize = (bytes) => bytes >= 1024 * 1024
         ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -1096,7 +956,13 @@ body {
         fileStatus.textContent = `Seçilen dosya: ${file.name} (${formatSize(file.size)})`;
     });
 
-    form.addEventListener("submit", () => {
+    form.addEventListener("submit", (event) => {
+        if (usedThisMonth() >= 5) {
+            event.preventDefault();
+            uploadStatus.textContent = "Bu cihazdaki aylık 5 analiz hakkı doldu. Haklar gelecek ay yenilenir.";
+            uploadStatus.classList.add("is-error");
+            return;
+        }
         submitButton.disabled = true;
         submitButton.textContent = "Analiz başlatılıyor…";
         uploadStatus.textContent = "Dosya gönderiliyor. Analiz tamamlanana kadar bu sayfayı açık tutun.";
@@ -1117,10 +983,7 @@ body {
 </body>
 
 </html>
-""".replace("__APP_VERSION__", APP_VERSION).replace("__ACCOUNT_PANEL__", _hesap_paneli(kullanici)).replace(
-        '<section class="card upload-card" aria-labelledby="upload-heading">',
-        '<section class="card upload-card" aria-labelledby="upload-heading">' if kullanici else '<section class="card upload-card" aria-labelledby="upload-heading" hidden>',
-    )
+""".replace("__APP_VERSION__", APP_VERSION)
 
 
 # ============================================================
@@ -2388,64 +2251,10 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
 # ANA SAYFA
 # ============================================================
 
-@app.post("/hesap/kayit")
-async def hesap_kayit(request: Request, email: str = Form(...), parola: str = Form(...)):
-    email = email.strip().casefold()
-    if len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
-        return HTMLResponse("<h2>Geçerli bir e-posta adresi girin.</h2><a href='/'>Geri dön</a>", status_code=400)
-    if len(parola) < 10:
-        return HTMLResponse("<h2>Şifre en az 10 karakter olmalı.</h2><a href='/'>Geri dön</a>", status_code=400)
-    salt = secrets.token_bytes(16)
-    try:
-        with _db_baglantisi() as db:
-            cur = db.execute(
-                "INSERT INTO users(email,salt,password_hash,created_at) VALUES(?,?,?,?)",
-                (email, salt.hex(), _parola_ozeti(parola, salt), datetime.now(timezone.utc).isoformat()),
-            )
-        request.session.clear()
-        request.session["user_id"] = cur.lastrowid
-        return RedirectResponse("/", status_code=303)
-    except sqlite3.IntegrityError:
-        return HTMLResponse("<h2>Bu e-posta ile zaten hesap var. Giriş yapın.</h2><a href='/'>Geri dön</a>", status_code=409)
-
-
-@app.post("/hesap/giris")
-async def hesap_giris(request: Request, email: str = Form(...), parola: str = Form(...)):
-    with _db_baglantisi() as db:
-        user = db.execute("SELECT id,salt,password_hash FROM users WHERE email=?", (email.strip().casefold(),)).fetchone()
-    if not user or not hmac.compare_digest(_parola_ozeti(parola, bytes.fromhex(user["salt"])), user["password_hash"]):
-        return HTMLResponse("<h2>E-posta veya şifre hatalı.</h2><a href='/'>Geri dön</a>", status_code=401)
-    request.session.clear()
-    request.session["user_id"] = user["id"]
-    return RedirectResponse("/", status_code=303)
-
-
-@app.post("/hesap/cikis")
-async def hesap_cikis(request: Request):
-    request.session.clear()
-    return RedirectResponse("/", status_code=303)
-
-
-@app.get("/projeler/{project_id}", response_class=HTMLResponse)
-async def kayitli_proje(project_id: int, request: Request):
-    user = _mevcut_kullanici(request)
-    if not user:
-        return RedirectResponse("/", status_code=303)
-    with _db_baglantisi() as db:
-        row = db.execute(
-            "SELECT filename,source_json,analysis_json FROM projects WHERE id=? AND user_id=? AND status='completed'",
-            (project_id, user["id"]),
-        ).fetchone()
-    if not row:
-        return HTMLResponse("<h2>Kayıtlı analiz bulunamadı.</h2><a href='/'>Ana sayfaya dön</a>", status_code=404)
-    sonuc = json.loads(row["source_json"])
-    analiz = json.loads(row["analysis_json"])
-    return sonuc_sayfasi(row["filename"], sonuc, analiz)
-
 @app.get("/", response_class=HTMLResponse)
-async def ana_sayfa_route(request: Request):
+async def ana_sayfa_route():
 
-    return ana_sayfa(_mevcut_kullanici(request))
+    return ana_sayfa()
 
 
 # ============================================================
@@ -2491,7 +2300,6 @@ async def test():
 
 @app.post("/proje/yukle")
 async def proje_yukle(
-    request: Request,
     dosya: UploadFile = File(...),
     fiyat_bolgesi: str = Form("Türkiye geneli"),
     fire_yuzdesi: float = Form(10, ge=0, le=25),
@@ -2499,10 +2307,6 @@ async def proje_yukle(
     olcu_birimi_varsayimi: str = Form("belirsiz"),
     kuru_alan_kaplamasi: str = Form("laminat"),
 ):
-
-    kullanici = _mevcut_kullanici(request)
-    if not kullanici:
-        raise HTTPException(status_code=401, detail="Analiz için giriş yapın.")
 
     if not dosya.filename:
 
@@ -2521,12 +2325,10 @@ async def proje_yukle(
         )
 
     gecici_dosya = None
-    proje_id = None
 
 
     try:
 
-        proje_id = _analiz_hakki_rezerve_et(kullanici["id"], dosya.filename)
         _analiz_bilesenlerini_dogrula()
 
         gecici_dosya = await _yuklemeyi_gecici_dosyaya_yaz(dosya, uzanti)
@@ -2552,7 +2354,6 @@ async def proje_yukle(
         analiz = await asyncio.to_thread(
             ProjectAgent().analyze, sonuc, fiyat_bolgesi, fire_yuzdesi, tavan_yuksekligi, olcu_birimi_varsayimi, kuru_alan_kaplamasi
         )
-        _analiz_kaydini_tamamla(proje_id, sonuc, analiz)
 
 
         # ----------------------------------------------------
@@ -2562,9 +2363,6 @@ async def proje_yukle(
         return {
 
             "durum": "başarılı",
-            "proje_id": proje_id,
-            "bu_ay_kalan_hak": max(0, AYLIK_ANALIZ_HAKKI - _aylik_kullanim(kullanici["id"])),
-
             "mesaj":
                 "Proje dosyası başarıyla okundu ve analiz edildi.",
 
@@ -2590,14 +2388,9 @@ async def proje_yukle(
 
 
     except HTTPException:
-        if proje_id:
-            _analiz_kaydini_basarisiz(proje_id, "İstek tamamlanamadı.")
         raise
 
     except Exception as hata:
-
-        if proje_id:
-            _analiz_kaydini_basarisiz(proje_id, str(hata))
 
         raise HTTPException(
 
@@ -2633,7 +2426,6 @@ async def proje_yukle(
     response_class=HTMLResponse
 )
 async def proje_analiz_et(
-    request: Request,
     dosya: UploadFile = File(...),
     fiyat_bolgesi: str = Form("Türkiye geneli"),
     fire_yuzdesi: float = Form(10, ge=0, le=25),
@@ -2641,10 +2433,6 @@ async def proje_analiz_et(
     olcu_birimi_varsayimi: str = Form("belirsiz"),
     kuru_alan_kaplamasi: str = Form("laminat"),
 ):
-
-    kullanici = _mevcut_kullanici(request)
-    if not kullanici:
-        return RedirectResponse("/", status_code=303)
 
     if not dosya.filename:
 
@@ -2669,12 +2457,10 @@ async def proje_analiz_et(
         )
 
     gecici_dosya = None
-    proje_id = None
 
 
     try:
 
-        proje_id = _analiz_hakki_rezerve_et(kullanici["id"], dosya.filename)
         _analiz_bilesenlerini_dogrula()
 
         gecici_dosya = await _yuklemeyi_gecici_dosyaya_yaz(dosya, uzanti)
@@ -2700,24 +2486,52 @@ async def proje_analiz_et(
         analiz = await asyncio.to_thread(
             ProjectAgent().analyze, sonuc, fiyat_bolgesi, fire_yuzdesi, tavan_yuksekligi, olcu_birimi_varsayimi, kuru_alan_kaplamasi
         )
-        _analiz_kaydini_tamamla(proje_id, sonuc, analiz)
 
 
         # ----------------------------------------------------
         # RAPOR SAYFASI
         # ----------------------------------------------------
 
-        return sonuc_sayfasi(
+        rapor = sonuc_sayfasi(
             dosya.filename,
             sonuc,
             analiz
-        ).replace("</body>", f'<p><a href="/projeler/{proje_id}">Bu raporu kayıtlı projelerimden aç</a> · Bu ay kalan hak: {max(0, AYLIK_ANALIZ_HAKKI - _aylik_kullanim(kullanici["id"]))}/{AYLIK_ANALIZ_HAKKI}</p></body>')
+        )
+        rapor_kaydi = json.dumps({"id": secrets.token_urlsafe(12), "filename": os.path.basename(dosya.filename)}, ensure_ascii=False).replace("</", "<\\/")
+        kayit_script = f'''<script id="local-report-save">
+(() => {{
+  const meta = {rapor_kaydi};
+  const key = "insaat_ai_saved_reports_v1";
+  const quotaKey = "insaat_ai_local_quota_v1";
+  const now = new Date();
+  const month = `${{now.getFullYear()}}-${{String(now.getMonth() + 1).padStart(2, "0")}}`;
+  try {{
+    const quota = JSON.parse(localStorage.getItem(quotaKey) || "{{}}");
+    quota[month] = Array.isArray(quota[month]) ? quota[month] : [];
+    if (!quota[month].includes(meta.id)) quota[month].push(meta.id);
+    localStorage.setItem(quotaKey, JSON.stringify(quota));
+    const reports = JSON.parse(localStorage.getItem(key) || "[]").filter(report => report.id !== meta.id);
+    const copy = document.documentElement.cloneNode(true);
+    copy.querySelector("#local-report-save")?.remove();
+    const htmlSnapshot = "<!doctype html>" + copy.outerHTML;
+    reports.push({{...meta, month, savedAt: now.toISOString(), html: htmlSnapshot}});
+    localStorage.setItem(key, JSON.stringify(reports.slice(-20)));
+    const note = document.createElement("p");
+    note.textContent = "Rapor bu cihazda kaydedildi. Ana sayfadaki Kayıtlı analizlerin bölümünden tekrar açabilirsin.";
+    note.style.cssText = "margin:16px auto;max-width:900px;padding:12px 16px;border:1px solid #3c8067;border-radius:12px;color:#b7f7d9;background:#10251f";
+    document.body.appendChild(note);
+  }} catch (error) {{
+    const note = document.createElement("p");
+    note.textContent = "Analiz tamamlandı ancak cihazda saklama alanı dolu olabilir. Eski raporları silip tekrar deneyebilirsin.";
+    note.style.cssText = "margin:16px auto;max-width:900px;padding:12px 16px;border:1px solid #9b6a32;border-radius:12px;color:#ffe1ad;background:#302314";
+    document.body.appendChild(note);
+  }}
+}})();
+</script>'''
+        return HTMLResponse(rapor.replace("</body>", kayit_script + "</body>"))
 
 
     except Exception as hata:
-
-        if proje_id:
-            _analiz_kaydini_basarisiz(proje_id, str(hata))
 
         hata_durumu = hata.status_code if isinstance(hata, HTTPException) else 500
         hata_mesaji = hata.detail if isinstance(hata, HTTPException) else str(hata)
