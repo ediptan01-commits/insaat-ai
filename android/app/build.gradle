@@ -12,6 +12,10 @@ android {
     namespace 'com.insaatai.app'
     compileSdk 36
 
+    buildFeatures {
+        resValues = true
+    }
+
     defaultConfig {
         applicationId 'com.insaatai.app'
         minSdk 23
