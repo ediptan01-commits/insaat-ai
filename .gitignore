@@ -206,6 +206,17 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Android Studio / Gradle outputs and local signing credentials
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/build/
+android/keystore.properties
+android/*.jks
+android/*.keystore
+*.jks
+*.keystore
+
 # PyPI configuration file
 .pypirc
 
