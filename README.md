@@ -8,6 +8,12 @@ Tamamlanan analiz raporları tarayıcı veya Android uygulamasının yerel depol
 
 Ayda 5 analiz hakkı aynı cihaz/tarayıcı için yerel olarak sayılır ve cihazın takvim ayı başında yenilenir. Başarısız analizler hak tüketmez. Bu sayaç cihazlar arasında eşitlenmez; tarayıcı/uygulama verisi silinirse raporlar ve sayaç da silinir. Hesap sistemi ve veritabanı gerekmez.
 
+## Raporu düzenleme ve dışa aktarma
+
+Sonuç raporundaki alt/üst malzeme miktarları elle değiştirilebilir; kaynaklı birim fiyatları sabit tutularak satır tutarı ve genel toplam anında yeniden hesaplanır. Değişiklikler cihazda kayıtlı rapora da yazılır. Excel'e aktar düğmesi, düzenlenmiş miktarlar, kaynaklı birim fiyat aralıkları, satır tutarları, fiyat tarihi ve kaynak bağlantılarıyla gerçek `.xlsx` çalışma kitabı indirir.
+
+Aynı ölçü biriminde fiyatı araştırılmış iki malzeme eşit miktar üzerinden karşılaştırılabilir. Karşılaştırma yeni fiyat araştırması başlatmaz; yalnızca rapordaki kaynaklı fiyatları kullanır. Kontrol özeti, pafta belirsizliklerini, metraja alınmayan odaları, öngörülen miktarları ve fiyat bulunmayan kalemleri satın alma öncesi gözden geçirmek için toplar.
+
 ## Proje analizi ve yaklaşık ön metraj
 
 Yükleme uçları PDF ve görselleri 50 MB ile sınırlar ve geçici dosyaya parça parça yazar; boyut sınırı aşılırsa anlaşılır bir hata döner. Yükleme formunda kuru odalar için laminat veya tüm odalar için seramik ön metraj varsayımı seçilebilir; bu tercih miktar, teknik föy tüketimi ve maliyete yansıtılır.
@@ -91,6 +97,10 @@ URL'lerle eşleşen ve istenen birimle uyumlu gözlenen teklifler girer. İki fa
 tedarikçi alan adı bulunursa aralık hesaplanır; tek doğrulanmış kaynak varsa
 gözlenen fiyat tek kaynak etiketiyle gösterilir. Yalnızca HTTP/HTTPS kaynakları
 kullanılır; aynı URL ve aynı fiyatın tekrarlanan alıntıları tekilleştirilir.
+Aynı satıcının farklı ürün sayfaları bağımsız kaynak sayılmaz; fiyat referans
+tarihi Türkiye saatine göre kaydedilir. Eski katalog, tarihi belirsiz arama
+snippet'i, stok dışı veya ikinci el fiyatlar güncel fiyat kabul edilmemesi için
+araştırma talimatında özellikle dışlanır.
 Fiyat bulunamazsa tahmini değer üretilmez. Yükleme formundaki
 fiyat bölgesi (varsayılan Türkiye geneli) arama konumunu etkiler;
 `OPENAI_PRICE_MODEL` fiyat araştırma modelini belirler. Görsel ve fiyat ajanı hatalarında metin analizi sürer;

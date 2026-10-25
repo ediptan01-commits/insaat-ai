@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from servisler.pdf_service import pdf_oku
 from servisler.image_service import gorsel_dosyasi_oku
 from servisler import quantity_service
@@ -13,11 +13,15 @@ import json
 import secrets
 import asyncio
 import re
+import math
+import io
+import zipfile
+import xml.etree.ElementTree as ET
 
 
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 MAKS_YUKLEME_BAYT = 50 * 1024 * 1024
-APP_VERSION = "0.6.35"
+APP_VERSION = "0.6.36"
 
 
 async def _yuklemeyi_gecici_dosyaya_yaz(dosya: UploadFile, uzanti: str) -> str:
@@ -1349,9 +1353,24 @@ def sonuc_sayfasi(
     maliyet_satirlari = []
     for kalem in maliyet_analizi.get("kalemler", []):
         kalem_adi = html.escape(str(kalem.get("malzeme", "-")))
-        gosterilen_miktar = kalem.get("miktar", "-")
-        if kalem.get("miktar_min") is not None and kalem.get("miktar_max") is not None:
-            gosterilen_miktar = f"{kalem['miktar_min']}–{kalem['miktar_max']}"
+        try:
+            miktar_min = float(kalem.get("miktar_min", kalem.get("miktar")))
+            miktar_max = float(kalem.get("miktar_max", kalem.get("miktar")))
+            if not (math.isfinite(miktar_min) and math.isfinite(miktar_max)):
+                raise ValueError
+        except (TypeError, ValueError):
+            miktar_min = miktar_max = 0.0
+        birim = html.escape(str(kalem.get("birim", "-")), quote=True)
+        row_data = (
+            f'class="cost-row" data-material="{html.escape(str(kalem.get("malzeme", "-")), quote=True)}" '
+            f'data-unit="{birim}" data-quantity-min="{miktar_min}" data-quantity-max="{miktar_max}" '
+            f'data-original-quantity-min="{miktar_min}" data-original-quantity-max="{miktar_max}"'
+        )
+        miktar_girdileri = (
+            f'<div class="quantity-edit"><label>Alt <input class="quantity-input" data-bound="min" type="number" min="0" step="any" value="{miktar_min}"></label>'
+            f'<label>Üst <input class="quantity-input" data-bound="max" type="number" min="0" step="any" value="{miktar_max}"></label>'
+            f'<span>{birim}</span></div>'
+        )
         if kalem.get("tahmin"):
             kalem_adi += " (öngörülen miktar)"
         if kalem.get("fiyat_durumu") != "kaynakli_web_fiyati":
@@ -1367,13 +1386,9 @@ def sonuc_sayfasi(
             )
             fiyat_mesaji = kalem.get("fiyat_dogrulama_notu", fiyat_mesaji)
             maliyet_satirlari.append(
-                "<tr><td>{}</td><td>{} {}</td><td>{}</td><td colspan=\"3\">{}</td></tr>".format(
-                    kalem_adi,
-                    html.escape(str(gosterilen_miktar)),
-                    html.escape(str(kalem.get("birim", "-"))),
-                    metraj_dayanagi_html(kalem),
-                    html.escape(fiyat_mesaji),
-                )
+                f'<tr {row_data} data-priced="0"><td>{kalem_adi}</td><td>{miktar_girdileri}</td>'
+                f'<td>{metraj_dayanagi_html(kalem)}</td><td>—</td>'
+                f'<td class="line-total">Fiyat yok</td><td>{html.escape(fiyat_mesaji)}</td></tr>'
             )
             continue
         kaynaklar = "<br>".join(
@@ -1392,18 +1407,15 @@ def sonuc_sayfasi(
             kaynaklar += "<br><small>Tek bağımsız fiyat kaynağı; aralık değildir.</small>"
         else:
             birim_fiyat_html = f"₺{birim_fiyat_min}–₺{birim_fiyat_max}"
+            kaynaklar += f"<br><small>{html.escape(str(kalem.get('fiyat_kaynak_sayisi', 0)))} bağımsız satıcı kaynağı</small>"
+        tutar_min_html = f"{kalem['min_tutar_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        tutar_max_html = f"{kalem['max_tutar_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         maliyet_satirlari.append(
-            "<tr><td>{}</td><td>{} {}</td><td>{}</td><td>{}</td><td>₺{}–₺{}</td><td>{}<br><small>KDV: {}</small></td></tr>".format(
-                kalem_adi,
-                html.escape(str(gosterilen_miktar)),
-                html.escape(str(kalem.get("birim", "-"))),
-                metraj_dayanagi_html(kalem),
-                birim_fiyat_html,
-                f"{kalem['min_tutar_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                f"{kalem['max_tutar_try']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                kaynaklar,
-                html.escape(str(kalem.get("kdv_durumu", "belirtilmemiş"))),
-            )
+            f'<tr {row_data} data-priced="1" data-price-min="{kalem["min_birim_fiyat_try"]}" data-price-max="{kalem["max_birim_fiyat_try"]}">'
+            f'<td>{kalem_adi}</td><td>{miktar_girdileri}</td><td>{metraj_dayanagi_html(kalem)}</td>'
+            f'<td>{birim_fiyat_html}</td><td><strong class="line-total">₺{tutar_min_html}–₺{tutar_max_html}</strong>'
+            f'<small class="formula-note">Alt ve üst miktar × karşılık gelen birim fiyat</small></td>'
+            f'<td>{kaynaklar}<br><small>KDV: {html.escape(str(kalem.get("kdv_durumu", "belirtilmemiş")))}</small></td></tr>'
         )
     maliyet_html = "".join(maliyet_satirlari) or (
         '<tr><td colspan="6">Fiyat araştırması için hesaplanabilir malzeme miktarı yok.</td></tr>'
@@ -1448,6 +1460,39 @@ def sonuc_sayfasi(
         maliyet_analizi.get("ongorulen_miktar_toplam_max_try"),
     )
     maliyet_tarihi = html.escape(str(maliyet_analizi.get("fiyat_referans_tarihi", "")))
+
+    inceleme_notlari = []
+    for notu in (gorsel_veri.get("belirsizlikler", []) if isinstance(gorsel_veri, dict) else []):
+        if str(notu).strip():
+            inceleme_notlari.append("Çizim belirsizliği: " + str(notu))
+    for satir in analiz.get("metraj_belirsizlikleri", []):
+        if isinstance(satir, dict):
+            inceleme_notlari.append(
+                "Metraj kontrolü: " + str(satir.get("kaynak", "Belirsiz satır"))
+                + " — " + str(satir.get("neden", "Miktar doğrulanmalı."))
+            )
+    for oda in miktar_analizi.get("hesaplanamayan_odalar", []):
+        inceleme_notlari.append("Oda metraja alınmadı: " + str(oda))
+    for kalem in maliyet_analizi.get("kalemler", []):
+        if kalem.get("tahmin"):
+            inceleme_notlari.append(
+                "Öngörülen miktar: " + str(kalem.get("malzeme", "Malzeme"))
+                + " — satın almadan önce pafta ve ölçüleri doğrulayın."
+            )
+    fiyatsiz_sayi = sum(
+        1 for kalem in maliyet_analizi.get("kalemler", [])
+        if kalem.get("fiyat_durumu") != "kaynakli_web_fiyati"
+    )
+    if fiyatsiz_sayi:
+        inceleme_notlari.append(
+            f"{fiyatsiz_sayi} malzeme kalemi için uyumlu, doğrulanabilir fiyat bulunamadı; toplam maliyete dahil değil."
+        )
+    if gorsel_analizi.get("durum") not in ("tamamlandi", "kismi_tamamlandi"):
+        inceleme_notlari.append("Görsel analiz tamamlanmadı; miktar ve malzeme sonuçlarını elle kontrol edin.")
+    inceleme_notlari = inceleme_notlari[:20]
+    inceleme_html = "".join(f"<li>{html.escape(notu)}</li>" for notu in inceleme_notlari)
+    if not inceleme_html:
+        inceleme_html = "<li>Otomatik kontroller belirgin bir eksik bildirmedi. Satın alma öncesi paftaları ve ölçüleri kontrol edin.</li>"
 
 
     return f"""
@@ -1859,6 +1904,15 @@ td {{ color: #d1d9e5; }}
 .table-container a {{ color: #b8a6ff; overflow-wrap: anywhere; }}
 .tag {{ padding: 7px 10px; border: 1px solid #403a6b; border-radius: 999px; background: rgba(71, 58, 132, .32); font-size: 12px; }}
 .warning {{ border-color: #65502d; border-radius: 13px; background: rgba(74, 52, 22, .45); font-size: 13px; line-height: 1.5; }}
+.report-tools {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }}
+.quantity-edit {{ display: grid; grid-template-columns: 1fr 1fr; gap: 5px; min-width: 150px; align-items: end; }}
+.quantity-edit label {{ color: #9aa9be; font-size: 10px; }}
+.quantity-input, .compare-select, .compare-amount {{ width: 100%; min-width: 66px; padding: 7px 8px; border: 1px solid #344864; border-radius: 8px; background: #0c1523; color: #f1f5f9; font: inherit; }}
+.quantity-edit > span {{ grid-column: 1 / -1; color: #9aa9be; font-size: 10px; }}
+.comparison-box {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; align-items: end; margin-top: 12px; padding: 13px; border: 1px solid #273750; border-radius: 12px; background: rgba(10, 17, 28, .42); }}
+.comparison-box label {{ display: grid; gap: 5px; color: #9aa9be; font-size: 11px; }}
+.comparison-result {{ grid-column: 1 / -1; margin: 0; color: #e6eaf2; font-weight: 700; }}
+.formula-note {{ display: block; margin-top: 5px; color: #9aa9be; font-size: 10px; }}
 .button {{ min-height: 46px; padding: 12px 15px; border: 1px solid rgba(207, 193, 255, .22); border-radius: 12px; background: linear-gradient(105deg, #653bc7, #7650df 55%, #527ed8); font-size: 14px; box-shadow: 0 8px 24px rgba(94, 62, 187, .2); }}
 .button:hover {{ filter: brightness(1.08); transform: translateY(-1px); }}
 details {{ border: 1px solid #273750; border-radius: 12px; background: rgba(10, 17, 28, .42); }}
@@ -1888,6 +1942,7 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
     .button {{ min-height: 46px; padding: 12px; border-radius: 11px; font-size: 14px; }}
     .tag {{ padding: 6px 9px; font-size: 11px; }}
     .warning {{ padding: 11px; font-size: 12px; }}
+    .quantity-edit {{ min-width: 132px; }}
     .card[id] {{ scroll-margin-top: 68px; }}
 }}
 
@@ -1903,6 +1958,8 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
     h1, h2, h3, p, li, td, th, strong, .success, .warning {{ color: #111 !important; }}
     .success, .warning {{ background: #fff !important; border-color: #888; }}
     .no-print {{ display: none !important; }}
+    .quantity-edit {{ display: block; min-width: 0; }}
+    .quantity-input {{ display: none; }}
     .table-container {{ overflow: visible; }}
     .table-container::after {{ display: none; }}
     .report-nav {{ display: none; }}
@@ -1950,6 +2007,7 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
     <a href="#malzemeler">Malzemeler</a>
     <a href="#metraj">Metraj</a>
     <a href="#miktarlar">Miktarlar</a>
+    <a href="#kontrol">Kontrol</a>
     <a href="#maliyet">Maliyet</a>
     <a href="#paftalar">Paftalar</a>
     <a href="#analiz-durumu">Durum</a>
@@ -2041,6 +2099,13 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
 
     </div>
 
+</div>
+
+
+<div class="card warning" id="kontrol">
+    <h2>🔎 Kontrol edilmesi gerekenler</h2>
+    <p>Belirsiz veya fiyatı doğrulanamayan noktaları satın alma öncesinde gözden geçir.</p>
+    <ul>{inceleme_html}</ul>
 </div>
 
 
@@ -2157,16 +2222,30 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
 
     <h2>💰 Güncel Fiyatlarla Yaklaşık Malzeme Maliyeti</h2>
     <p>Fiyat araştırma durumu: <strong>{maliyet_durum}</strong></p>
-    <p>Fiyat bölgesi: <strong>{maliyet_bolge}</strong> {f'• Referans tarihi: {maliyet_tarihi}' if maliyet_tarihi else ''}</p>
+    <p>Fiyat bölgesi: <strong>{maliyet_bolge}</strong> {f'• Fiyat araştırma tarihi: {maliyet_tarihi}' if maliyet_tarihi else ''}</p>
     <p>Fiyat kapsamı: <strong>{html.escape(fiyat_kapsami)}</strong></p>
     {f'<p class="muted">Fiyat sağlayıcısı yanıtı:<ul>{fiyat_hatasi_html}</ul></p>' if fiyat_hatasi_html else ''}
-    <p>Kaynaklı kalemlerin yaklaşık toplamı: <strong>{toplam_maliyet_html}</strong></p>
+    <p>Kaynaklı kalemlerin yaklaşık toplamı: <strong id="edited-total">{toplam_maliyet_html}</strong></p>
     <p>Miktar türüne göre: belgede yazılı <strong>{belge_miktari_toplami}</strong> • öngörülen <strong>{ongoru_miktari_toplami}</strong></p>
+    <div class="report-tools no-print">
+    <button class="button" id="export-xlsx" type="button">Excel dosyasını indir</button>
+        <button class="button" id="share-xlsx" type="button">Excel dosyasını paylaş</button>
+        <button class="button" id="reset-quantities" type="button">Miktarları sıfırla</button>
+    </div>
+    <p class="field-hint">Alt ve üst miktarları düzenleyebilirsin. Kaynaklı kalemlerin yaklaşık tutarı otomatik güncellenir; fiyat araştırması yeniden yapılmaz.</p>
     <div class="table-container">
         <table>
             <thead><tr><th>Malzeme</th><th>Miktar</th><th>Metraj dayanağı</th><th>Birim fiyat aralığı</th><th>Kalem tutarı</th><th>Fiyat kaynakları</th></tr></thead>
             <tbody>{maliyet_html}</tbody>
         </table>
+    </div>
+    <h3>Alternatif malzeme karşılaştırması</h3>
+    <p>Raporun fiyat araştırmasında bulunan ve aynı birimde olan iki malzemeyi eşit miktar üzerinden kıyaslar. Yeni fiyat araması yapmaz.</p>
+    <div class="comparison-box no-print" id="alternative-comparison">
+        <label>Malzeme A<select class="compare-select" id="compare-a"></select></label>
+        <label>Malzeme B<select class="compare-select" id="compare-b"></select></label>
+        <label>Karşılaştırılacak miktar<input class="compare-amount" id="compare-quantity" type="number" min="0" step="any" value="10"></label>
+        <p class="comparison-result" id="comparison-result" aria-live="polite">Aynı birimde fiyatı bulunan alternatifler aranıyor…</p>
     </div>
     <p>{html.escape(str(maliyet_analizi.get('kapsam_notu', 'Toplam yaklaşık bir piyasa göstergesidir; teklif değildir.')))}</p>
     <div class="warning">Bu yaklaşık ön maliyet, araştırmada karşılaştırılabilir fiyatı bulunan kalemleri kapsar. İşçilik, nakliye, vergi belirsizliği, bölgesel fark ve çizimde yer almayan işler ayrıca değerlendirilmelidir.</div>
@@ -2241,6 +2320,134 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
 
 </div>
 
+<form id="excel-export-form" method="post" action="/rapor/excel" hidden>
+    <input type="hidden" name="payload" id="excel-payload">
+</form>
+<script>
+(() => {{
+    const rows = [...document.querySelectorAll(".cost-row")];
+    const totalNode = document.getElementById("edited-total");
+    const money = value => "₺" + Number(value).toLocaleString("tr-TR", {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
+    const number = value => {{ const parsed = Number(value); return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0; }};
+    const rowValues = row => {{
+        const minInput = row.querySelector('[data-bound="min"]');
+        const maxInput = row.querySelector('[data-bound="max"]');
+        let min = number(minInput?.value), max = number(maxInput?.value);
+        if (max < min) {{ max = min; if (maxInput) maxInput.value = String(max); }}
+        if (minInput) minInput.setAttribute("value", String(min));
+        if (maxInput) maxInput.setAttribute("value", String(max));
+        return {{min, max}};
+    }};
+    window.insaatSaveEditedReport = () => {{
+        const id = document.body.dataset.reportId;
+        if (!id) return;
+        try {{
+            const saved = JSON.parse(localStorage.getItem("insaat_ai_saved_reports_v1") || "[]");
+            const copy = document.documentElement.cloneNode(true);
+            copy.querySelector("#local-report-save")?.remove();
+            const snapshot = "<!doctype html>" + copy.outerHTML;
+            const index = saved.findIndex(item => item.id === id);
+            if (index >= 0) {{ saved[index].html = snapshot; saved[index].editedAt = new Date().toISOString(); }}
+            localStorage.setItem("insaat_ai_saved_reports_v1", JSON.stringify(saved.slice(-20)));
+        }} catch (_) {{}}
+    }};
+    const updateTotals = () => {{
+        let low = 0, high = 0, count = 0;
+        rows.forEach(row => {{
+            const {{min, max}} = rowValues(row);
+            if (row.dataset.priced !== "1") return;
+            const lineLow = min * number(row.dataset.priceMin);
+            const lineHigh = max * number(row.dataset.priceMax);
+            low += lineLow; high += lineHigh; count++;
+            row.querySelector(".line-total").textContent = `${{money(lineLow)}}–${{money(lineHigh)}}`;
+            const formula = row.querySelector(".formula-note");
+            if (formula) formula.textContent = `Alt: ${{min.toLocaleString("tr-TR")}} ${{row.dataset.unit}} × ${{money(number(row.dataset.priceMin))}} = ${{money(lineLow)}} · Üst: ${{max.toLocaleString("tr-TR")}} × ${{money(number(row.dataset.priceMax))}} = ${{money(lineHigh)}}`;
+            row.dataset.quantityMin = String(min); row.dataset.quantityMax = String(max);
+        }});
+        if (totalNode && count) totalNode.textContent = `${{money(low)}}–${{money(high)}}`;
+        updateComparison();
+        window.insaatSaveEditedReport?.();
+    }};
+    document.querySelectorAll(".quantity-input").forEach(input => input.addEventListener("input", updateTotals));
+    document.getElementById("reset-quantities")?.addEventListener("click", () => {{
+        rows.forEach(row => row.querySelectorAll(".quantity-input").forEach(input => {{
+            input.value = input.dataset.bound === "min" ? row.dataset.originalQuantityMin : row.dataset.originalQuantityMax;
+        }}));
+        updateTotals();
+    }});
+    const prepareWorkbookDownload = () => {{
+        const reportRows = rows.map(row => {{
+            const {{min, max}} = rowValues(row);
+            return {{
+                malzeme: row.dataset.material || "",
+                miktar_alt: min, miktar_ust: max, birim: row.dataset.unit || "",
+                birim_fiyat_alt: row.dataset.priced === "1" ? number(row.dataset.priceMin) : null,
+                birim_fiyat_ust: row.dataset.priced === "1" ? number(row.dataset.priceMax) : null,
+                tutar_alt: row.dataset.priced === "1" ? min * number(row.dataset.priceMin) : null,
+                tutar_ust: row.dataset.priced === "1" ? max * number(row.dataset.priceMax) : null,
+                fiyat_durumu: row.dataset.priced === "1" ? "Kaynaklı fiyat" : "Fiyat bulunamadı",
+                kaynaklar: [...row.querySelectorAll("td:last-child a")].map(link => link.href).join(" | ")
+            }};
+        }});
+        document.getElementById("excel-payload").value = JSON.stringify({{dosya: {json.dumps(str(dosya_adi))}, fiyat_tarihi: {json.dumps(str(maliyet_analizi.get('fiyat_referans_tarihi', '')))}, toplam_min_try: reportRows.reduce((sum, row) => sum + (row.tutar_alt || 0), 0), toplam_max_try: reportRows.reduce((sum, row) => sum + (row.tutar_ust || 0), 0), kalemler: reportRows}});
+    }};
+    const exportForm = document.getElementById("excel-export-form");
+    document.getElementById("export-xlsx")?.addEventListener("click", () => {{
+        prepareWorkbookDownload();
+        document.getElementById("excel-export-form").submit();
+    }});
+    document.getElementById("share-xlsx")?.addEventListener("click", async () => {{
+        prepareWorkbookDownload();
+        try {{
+            const response = await fetch(exportForm.action, {{method: "POST", body: new FormData(exportForm)}});
+            if (!response.ok) throw new Error("Dosya hazırlanamadı.");
+            const file = new File([await response.blob()], "insaat-ai-maliyet-raporu.xlsx", {{type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}});
+            if (navigator.share && navigator.canShare?.({{files: [file]}})) {{
+                try {{ await navigator.share({{files: [file], title: "İnşaat AI maliyet raporu"}}); }}
+                catch (error) {{ if (error.name !== "AbortError") exportForm.submit(); }}
+            }} else {{ exportForm.submit(); }}
+        }} catch (_) {{ exportForm.submit(); }}
+    }});
+
+    const pricedRows = rows.filter(row => row.dataset.priced === "1");
+    const compareA = document.getElementById("compare-a"), compareB = document.getElementById("compare-b");
+    const compareQuantity = document.getElementById("compare-quantity"), comparisonResult = document.getElementById("comparison-result");
+    const comparable = pricedRows.filter(row => pricedRows.some(other => other !== row && other.dataset.unit === row.dataset.unit));
+    const addOptions = (select, items) => {{
+        select.innerHTML = items.map(row => `<option value="${{rows.indexOf(row)}}">${{row.dataset.material}} (${row.dataset.unit})</option>`).join("");
+    }};
+    const updateComparisonChoices = () => {{
+        if (!compareA || !compareB) return;
+        const selected = rows[Number(compareA.value)];
+        const sameUnit = comparable.filter(row => row.dataset.unit === selected?.dataset.unit && row !== selected);
+        addOptions(compareB, sameUnit);
+        updateComparison();
+    }};
+    function updateComparison() {{
+        if (!compareA || !compareB || !comparisonResult) return;
+        const a = rows[Number(compareA.value)], b = rows[Number(compareB.value)], q = number(compareQuantity?.value);
+        if (!a || !b || a === b || !q) {{ comparisonResult.textContent = "Karşılaştırma için iki malzeme ve sıfırdan büyük bir miktar seç."; return; }}
+        const aLow = q * number(a.dataset.priceMin), aHigh = q * number(a.dataset.priceMax);
+        const bLow = q * number(b.dataset.priceMin), bHigh = q * number(b.dataset.priceMax);
+        const deltaLow = bLow - aHigh, deltaHigh = bHigh - aLow;
+        const relation = deltaLow > 0 ? `B, A'dan yaklaşık ${{money(deltaLow)}}–${{money(deltaHigh)}} daha pahalı.`
+            : deltaHigh < 0 ? `B, A'dan yaklaşık ${{money(Math.abs(deltaHigh))}}–${{money(Math.abs(deltaLow))}} daha ucuz.`
+            : "Fiyat aralıkları örtüşüyor; hangisinin daha ucuz olduğu net değil.";
+        comparisonResult.textContent = `${{q}} ${{a.dataset.unit}} için A: ${{money(aLow)}}–${{money(aHigh)}} · B: ${{money(bLow)}}–${{money(bHigh)}}. ${{relation}}`;
+    }}
+    if (comparable.length >= 2) {{
+        addOptions(compareA, comparable);
+        updateComparisonChoices();
+        compareA.addEventListener("change", updateComparisonChoices);
+        compareB.addEventListener("change", updateComparison);
+        compareQuantity?.addEventListener("input", updateComparison);
+    }} else if (comparisonResult) {{
+        comparisonResult.textContent = "Karşılaştırma için aynı birimde fiyatı bulunan en az iki malzeme gerekli.";
+    }}
+    updateTotals();
+}})();
+</script>
+
 </body>
 
 </html>
@@ -2292,6 +2499,101 @@ async def test():
         "durum": "başarılı",
         "mesaj": "Sunucu cevap veriyor"
     }
+
+
+@app.post("/rapor/excel")
+async def rapor_excel_indir(payload: str = Form(...)):
+    """Düzenlenmiş rapor satırlarını gerçek XLSX çalışma kitabı olarak verir."""
+    if len(payload) > 300_000:
+        raise HTTPException(status_code=413, detail="Rapor dışa aktarma boyutu sınırı aşıldı.")
+    try:
+        veri = json.loads(payload)
+    except json.JSONDecodeError as hata:
+        raise HTTPException(status_code=400, detail="Rapor dışa aktarma verisi okunamadı.") from hata
+    if not isinstance(veri, dict) or not isinstance(veri.get("kalemler"), list):
+        raise HTTPException(status_code=400, detail="Rapor dışa aktarma verisi geçersiz.")
+    kalemler = veri["kalemler"]
+    if len(kalemler) > 500:
+        raise HTTPException(status_code=413, detail="En fazla 500 malzeme satırı dışa aktarılabilir.")
+
+    def hucre(deger):
+        if deger is None:
+            return ""
+        metin = str(deger).replace("\x00", "")[:2000]
+        return metin
+
+    rows = [
+        ["Proje", hucre(veri.get("dosya", ""))],
+        ["Fiyat araştırma tarihi", hucre(veri.get("fiyat_tarihi", ""))],
+        [],
+        [
+        "Malzeme", "Miktar alt", "Miktar üst", "Birim",
+        "Birim fiyat alt (TL)", "Birim fiyat üst (TL)",
+        "Tutar alt (TL)", "Tutar üst (TL)", "Fiyat durumu", "Fiyat kaynakları",
+        ],
+    ]
+    for kalem in kalemler:
+        if not isinstance(kalem, dict):
+            continue
+        rows.append([
+            hucre(kalem.get("malzeme")), kalem.get("miktar_alt"), kalem.get("miktar_ust"),
+            hucre(kalem.get("birim")), kalem.get("birim_fiyat_alt"), kalem.get("birim_fiyat_ust"),
+            kalem.get("tutar_alt"), kalem.get("tutar_ust"), hucre(kalem.get("fiyat_durumu")),
+            hucre(kalem.get("kaynaklar")),
+        ])
+    rows.extend([
+        [],
+        ["Kaynaklı kalemlerin yaklaşık toplamı (TL)", veri.get("toplam_min_try"), veri.get("toplam_max_try")],
+    ])
+    main_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    rel_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    pkg_rel_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    content_ns = "http://schemas.openxmlformats.org/package/2006/content-types"
+    ET.register_namespace("", main_ns)
+    ET.register_namespace("r", rel_ns)
+    workbook = ET.Element(f"{{{main_ns}}}workbook")
+    sheets = ET.SubElement(workbook, f"{{{main_ns}}}sheets")
+    ET.SubElement(sheets, f"{{{main_ns}}}sheet", {"name": "Maliyet Raporu", "sheetId": "1", f"{{{rel_ns}}}id": "rId1"})
+    sheet = ET.Element(f"{{{main_ns}}}worksheet")
+    sheet_data = ET.SubElement(sheet, f"{{{main_ns}}}sheetData")
+    for row_index, values in enumerate(rows, start=1):
+        row_element = ET.SubElement(sheet_data, f"{{{main_ns}}}row", {"r": str(row_index)})
+        for col_index, value in enumerate(values, start=1):
+            if value is None or value == "":
+                continue
+            number = col_index
+            column = ""
+            while number:
+                number, remainder = divmod(number - 1, 26)
+                column = chr(65 + remainder) + column
+            cell = ET.SubElement(row_element, f"{{{main_ns}}}c", {"r": f"{column}{row_index}"})
+            if isinstance(value, (int, float)) and math.isfinite(value):
+                ET.SubElement(cell, f"{{{main_ns}}}v").text = str(value)
+            else:
+                cell.set("t", "inlineStr")
+                inline = ET.SubElement(cell, f"{{{main_ns}}}is")
+                ET.SubElement(inline, f"{{{main_ns}}}t").text = hucre(value)
+    content_types = ET.Element(f"{{{content_ns}}}Types")
+    ET.SubElement(content_types, f"{{{content_ns}}}Default", {"Extension": "rels", "ContentType": "application/vnd.openxmlformats-package.relationships+xml"})
+    ET.SubElement(content_types, f"{{{content_ns}}}Default", {"Extension": "xml", "ContentType": "application/xml"})
+    ET.SubElement(content_types, f"{{{content_ns}}}Override", {"PartName": "/xl/workbook.xml", "ContentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"})
+    ET.SubElement(content_types, f"{{{content_ns}}}Override", {"PartName": "/xl/worksheets/sheet1.xml", "ContentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"})
+    root_rels = ET.Element(f"{{{pkg_rel_ns}}}Relationships")
+    ET.SubElement(root_rels, f"{{{pkg_rel_ns}}}Relationship", {"Id": "rId1", "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", "Target": "xl/workbook.xml"})
+    workbook_rels = ET.Element(f"{{{pkg_rel_ns}}}Relationships")
+    ET.SubElement(workbook_rels, f"{{{pkg_rel_ns}}}Relationship", {"Id": "rId1", "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "Target": "worksheets/sheet1.xml"})
+    cikti = io.BytesIO()
+    with zipfile.ZipFile(cikti, "w", zipfile.ZIP_DEFLATED) as xlsx:
+        xlsx.writestr("[Content_Types].xml", ET.tostring(content_types, encoding="utf-8", xml_declaration=True))
+        xlsx.writestr("_rels/.rels", ET.tostring(root_rels, encoding="utf-8", xml_declaration=True))
+        xlsx.writestr("xl/workbook.xml", ET.tostring(workbook, encoding="utf-8", xml_declaration=True))
+        xlsx.writestr("xl/_rels/workbook.xml.rels", ET.tostring(workbook_rels, encoding="utf-8", xml_declaration=True))
+        xlsx.writestr("xl/worksheets/sheet1.xml", ET.tostring(sheet, encoding="utf-8", xml_declaration=True))
+    return Response(
+        content=cikti.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="insaat-ai-maliyet-raporu.xlsx"'},
+    )
 
 
 # ============================================================
@@ -2506,6 +2808,7 @@ async def proje_analiz_et(
   const now = new Date();
   const month = `${{now.getFullYear()}}-${{String(now.getMonth() + 1).padStart(2, "0")}}`;
   try {{
+    document.body.dataset.reportId = meta.id;
     const quota = JSON.parse(localStorage.getItem(quotaKey) || "{{}}");
     quota[month] = Array.isArray(quota[month]) ? quota[month] : [];
     if (!quota[month].includes(meta.id)) quota[month].push(meta.id);
