@@ -1,6 +1,18 @@
 # insaat-ai
 
-İnşaat ustaları için yapay zekâ destekli ölçü defteri.
+Paftalardan metraj, malzeme miktarı ve yaklaşık maliyet çıkaran yapay zekâ destekli proje analiz uygulaması.
+
+## Hesaplar, kota ve kayıtlı projeler
+
+Kullanıcı e-posta ve en az 10 karakterli parola ile hesap oluşturur. Her hesap UTC takvim ayı başına 5 analiz yapabilir; devam eden analizler de eşzamanlı kullanımı önlemek için geçici olarak hak ayırır. Başarısız analizler kota tüketmez. Tamamlanan analiz raporu kullanıcı hesabında saklanır ve ana sayfadaki “Kayıtlı analizlerin” alanından tekrar açılabilir. Yüklenen orijinal PDF/görsel kalıcı olarak saklanmaz; rapor, çıkarılmış metraj/analiz verisini tutar. Hesap doğrulama ve parola sıfırlama şu an sunulmuyor; kullanıcıya doğru e-posta ve parolasını saklaması söylenmelidir.
+
+Kayıt ve analiz verileri SQLite'ta tutulur. Yerel çalışmada insaat_ai.sqlite3 kullanılır. Render dağıtımında bu dosyanın silinmemesi için uygun bir Render Persistent Disk bağlayıp mount path'i /var/data olarak ayarlayın ve aşağıdaki Environment değişkenlerini tanımlayın:
+
+- DATABASE_PATH=/var/data/insaat_ai.sqlite3
+- DATABASE_PATH değeri kalıcı diskte olmalı. Oturum anahtarı aynı diskte .session_secret dosyasına güvenli biçimde yazılır; özel SESSION_SECRET ortam değişkeniyle de verilebilir.
+- SESSION_COOKIE_SECURE=true (HTTPS dağıtımı için; yerel HTTP denemesinde false ayarlayın)
+
+Persistent Disk bağlanmadan ya da DATABASE_PATH kalıcı diske yönlendirilmeden hesap ve proje kayıtları yeniden dağıtımda/uyku sonrası kaybolabilir. Disk bağlanmış tek uygulama örneğiyle SQLite kullanın; yatay ölçekleme için paylaşımlı bir PostgreSQL veritabanına geçilmelidir. Hesap/parola verileri korunur; veritabanı dosyasını herkese açık indirme alanına koymayın.
 
 ## Proje analizi ve yaklaşık ön metraj
 
