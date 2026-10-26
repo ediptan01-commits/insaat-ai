@@ -2417,7 +2417,7 @@ details pre {{ margin: 0; padding: 12px; border-top: 1px solid #273750; color: #
     const compareQuantity = document.getElementById("compare-quantity"), comparisonResult = document.getElementById("comparison-result");
     const comparable = pricedRows.filter(row => pricedRows.some(other => other !== row && other.dataset.unit === row.dataset.unit));
     const addOptions = (select, items) => {{
-        select.innerHTML = items.map(row => `<option value="${{rows.indexOf(row)}}">${{row.dataset.material}} (${row.dataset.unit})</option>`).join("");
+        select.innerHTML = items.map(row => `<option value="${{rows.indexOf(row)}}">${{row.dataset.material}} (${{row.dataset.unit}})</option>`).join("");
     }};
     const updateComparisonChoices = () => {{
         if (!compareA || !compareB) return;
