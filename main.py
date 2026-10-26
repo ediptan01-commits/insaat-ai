@@ -6,6 +6,7 @@ from servisler.image_service import gorsel_dosyasi_oku
 from servisler import quantity_service
 from agents.project_agent import ProjectAgent
 
+import logging
 import tempfile
 import os
 import html
