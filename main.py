@@ -19,6 +19,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 
+logger = logging.getLogger(__name__)
+
 DESTEKLENEN_UZANTILAR = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 MAKS_YUKLEME_BAYT = 50 * 1024 * 1024
 APP_VERSION = "0.6.36"
@@ -2694,6 +2696,8 @@ async def proje_yukle(
 
     except Exception as hata:
 
+        logger.exception("Proje analiz API isteği başarısız oldu")
+
         raise HTTPException(
 
             status_code=500,
@@ -2835,6 +2839,8 @@ async def proje_analiz_et(
 
 
     except Exception as hata:
+
+        logger.exception("Proje analiz sayfası oluşturulamadı")
 
         hata_durumu = hata.status_code if isinstance(hata, HTTPException) else 500
         hata_mesaji = hata.detail if isinstance(hata, HTTPException) else str(hata)
